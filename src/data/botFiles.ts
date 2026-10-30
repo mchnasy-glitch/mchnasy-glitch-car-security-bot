@@ -1384,13 +1384,48 @@ services:
 `
   },
   {
+    path: 'Procfile',
+    filename: 'Procfile',
+    language: 'plaintext',
+    category: 'deploy',
+    description: 'دستور شروع خودکار فرآیند در رندر (Render Background Worker)',
+    content: `worker: python main.py
+`
+  },
+  {
+    path: 'render.yaml',
+    filename: 'render.yaml',
+    language: 'yaml',
+    category: 'deploy',
+    description: 'کانفیگ خودکار استقرار در رندر (Render Blueprint) بدون نیاز به Root Directory',
+    content: `services:
+  - type: worker
+    name: car-antitheft-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    autoDeploy: true
+    envVars:
+      - key: MESSENGER
+        value: bale
+      - key: BALE_API_URL
+        value: https://tapi.bale.ai
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: DB_PATH
+        value: bot_database.db
+`
+  },
+  {
     path: 'bot.service',
     filename: 'bot.service',
     language: 'ini',
     category: 'deploy',
     description: 'سرویس لینوکس systemd برای اجرای همیشه روشن ربات در سرور مجازی (VPS)',
     content: `[Unit]
-Description=Car Anti-Theft Services Telegram Bot
+Description=Car Anti-Theft Services Telegram/Bale Bot
 After=network.target
 
 [Service]
@@ -1407,3 +1442,4 @@ WantedBy=multi-user.target
 `
   }
 ];
+

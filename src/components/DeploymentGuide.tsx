@@ -258,11 +258,69 @@ WantedBy=multi-user.target
         </div>
       </div>
 
-      {/* دستورات استقرار سریع روی سرور */}
+      {/* راهنمای اختصاصی استقرار در رندر (Render) بدون نیاز به Root Directory */}
+      <div className="bg-slate-900/90 border-2 border-emerald-500/40 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg">
+            R
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <span>استقرار مستقیم در رندر (Render) — بدون نیاز به Root Directory</span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">
+                Root Structure Ready
+              </span>
+            </h3>
+            <p className="text-xs text-slate-300 mt-0.5">
+              تمامی فایل‌های پایتون (<code className="text-emerald-300">main.py</code>، <code className="text-emerald-300">requirements.txt</code>، <code className="text-emerald-300">Procfile</code> و <code className="text-emerald-300">render.yaml</code>) در ریشه اصلی مخزن قرار دارند.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs pt-2">
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+            <div className="font-bold text-emerald-400">۱. ساخت سرویس</div>
+            <p className="text-[11px] text-slate-400">
+              در داشبورد Render روی <strong>New +</strong> کلیک کرده و گزینه <strong>Background Worker</strong> را انتخاب کنید.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+            <div className="font-bold text-emerald-400">۲. مسیر ریشه (Root)</div>
+            <p className="text-[11px] text-slate-400">
+              قسمت <strong>Root Directory</strong> را <strong>خالی</strong> بگذارید (پیش‌فرض <code className="text-slate-300">/</code>). نیازی به آدرس‌دهی پوشه نیست.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+            <div className="font-bold text-emerald-400">۳. فرمان ساخت و اجرا</div>
+            <p className="text-[11px] text-slate-400">
+              <strong>Build:</strong> <code className="text-slate-300 font-mono">pip install -r requirements.txt</code><br />
+              <strong>Start:</strong> <code className="text-slate-300 font-mono">python main.py</code>
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+            <div className="font-bold text-emerald-400">۴. متغیرهای محیطی</div>
+            <p className="text-[11px] text-slate-400">
+              متغیرهای <code className="text-slate-300 font-mono">BOT_TOKEN</code>، <code className="text-slate-300 font-mono">ADMIN_ID</code> و <code className="text-slate-300 font-mono">MESSENGER=bale</code> را اضافه کنید.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-3 bg-emerald-950/40 border border-emerald-800/40 rounded-xl text-xs text-emerald-300 flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 shrink-0" />
+          <span>
+            فایل <code className="text-white font-mono">render.yaml</code> و <code className="text-white font-mono">Procfile</code> در ریشه مخزن قرار داده شده‌اند تا رندر سرویس شما را به صورت کامپوننت دائم‌روشن (Always-on Worker) بدون خاموشی اجرا کند.
+          </span>
+        </div>
+      </div>
+
+      {/* دستورات استقرار روی سرور لینوکس VPS */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
         <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
           <Terminal className="w-4 h-4 text-emerald-400" />
-          <span>فرمان‌های ترمینال برای راه‌اندازی بازوی بله در سرور لینوکس</span>
+          <span>فرمان‌های ترمینال برای راه‌اندازی بازوی بله در سرور لینوکس (VPS)</span>
         </h3>
 
         <div className="space-y-4 text-xs">

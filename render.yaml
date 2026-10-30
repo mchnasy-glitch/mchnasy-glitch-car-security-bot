@@ -1,0 +1,18 @@
+services:
+  - type: worker
+    name: car-antitheft-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    autoDeploy: true
+    envVars:
+      - key: MESSENGER
+        value: bale
+      - key: BALE_API_URL
+        value: https://tapi.bale.ai
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: DB_PATH
+        value: bot_database.db
