@@ -24,17 +24,6 @@ def get_phone_request_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def get_cancel_reply_keyboard() -> ReplyKeyboardMarkup:
-    """کیبورد ساده انصراف"""
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="❌ انصراف")]
-        ],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-
-
 def remove_keyboard() -> ReplyKeyboardRemove:
     """حذف کیبورد متنی"""
     return ReplyKeyboardRemove()
@@ -43,7 +32,6 @@ def remove_keyboard() -> ReplyKeyboardRemove:
 def get_cars_inline_keyboard(cars: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
     """فهرست خودروهای فعال جهت انتخاب توسط مشتری"""
     buttons = []
-    # دو خودرو در هر سطر برای دسترسی آسان در گوشی
     row = []
     for car in cars:
         btn = InlineKeyboardButton(
@@ -81,7 +69,6 @@ def get_services_inline_keyboard(
             InlineKeyboardButton(text=text, callback_data=f"toggle_srv:{s_id}")
         ])
 
-    # دکمه تأیید و ادامه تنها در صورت انتخاب حداقل یک مورد فعال به نظر می‌رسد
     count = len(selected_ids)
     if count > 0:
         continue_text = f"✅ تأیید و مشاهده خلاصه ({count} مورد انتخابی)"

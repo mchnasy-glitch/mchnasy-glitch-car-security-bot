@@ -11,7 +11,7 @@ from typing import List
 
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 
 import database
@@ -42,11 +42,8 @@ def normalize_persian_numbers(text: str) -> str:
 def validate_iranian_phone(phone_raw: str) -> str | None:
     """اعتبارسنجی و تبدیل شماره تلفن ایران به فرمت استاندارد 09xxxxxxxxx"""
     cleaned = normalize_persian_numbers(phone_raw).strip()
-    # حذف کاراکترهای اضافه مانند خط تیره، پرانتز و فاصله
     cleaned = re.sub(r"[\s\-\(\)]", "", cleaned)
 
-    # الگوهای مختلف شماره موبایل در ایران
-    # 09121234567 | +989121234567 | 00989121234567 | 9121234567
     patterns = [
         r"^(?:\+98|0098|0)?(9\d{9})$"
     ]
@@ -115,10 +112,10 @@ async def process_customer_name(message: Message, state: FSMContext):
 
 @customer_router.message(CustomerOrderState.waiting_for_phone, F.contact)
 async def process_phone_contact(message: Message, state: FSMContext):
-    """دریافت شماره از طریق دکمه تماس تلگرام همراه با اعتبارسنجی مالکیت اکانت"""
+    """دریافت شماره از طریق دکمه تماس با اعتبارسنجی مالکیت اکانت"""
     contact = message.contact
 
-    # شرط امنیتی اجباری: بررسی اینکه شماره واقعاً متعلق به همین کاربر تلگرام باشد
+    # شرط امنیتی اجباری: بررسی اینکه شماره متعلق به همین کاربر باشد
     if contact.user_id != message.from_user.id:
         await message.answer(
             "⛔️ خطا: شماره ارسال‌شده متعلق به این حساب کاربری نیست!\n"
@@ -129,7 +126,6 @@ async def process_phone_contact(message: Message, state: FSMContext):
 
     normalized_phone = validate_iranian_phone(contact.phone_number)
     if not normalized_phone:
-        # در صورت شماره‌های بدون صفر بین‌المللی
         raw = contact.phone_number.replace("+", "")
         if raw.startswith("98") and len(raw) == 12:
             normalized_phone = "0" + raw[2:]
@@ -220,7 +216,6 @@ async def handle_car_selection(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_reply_markup(reply_markup=get_cars_inline_keyboard(cars))
         return
 
-    # دریافت خدمات فعال اختصاصی خودرو
     services = await database.get_active_services_by_car(car_id)
     await state.update_data(
         car_id=car["id"],
@@ -299,7 +294,6 @@ async def proceed_to_order_summary(callback: CallbackQuery, state: FSMContext):
     customer_name = data.get("customer_name")
     customer_phone = data.get("customer_phone")
 
-    # استخراج نام خدمات انتخاب شده
     services = await database.get_active_services_by_car(car_id)
     selected_names = [s["name"] for s in services if s["id"] in selected_ids]
 
@@ -353,12 +347,11 @@ async def back_to_services(callback: CallbackQuery, state: FSMContext):
 @customer_router.callback_query(CustomerOrderState.confirming_order, F.data == "confirm_final_order")
 async def finalize_order(callback: CallbackQuery, state: FSMContext, bot: Bot):
     current_state = await state.get_state()
-    # جلوگیری قاطع از ثبت تکراری ناشی از تاچ‌های مکرر یا سریع دکمه (Debounce & Idempotency Lock)
+    # جلوگیری قاطع از ثبت تکراری ناشی از تاچ‌های مکرر یا سریع دکمه
     if current_state != CustomerOrderState.confirming_order.state:
         await callback.answer("این سفارش در حال پردازش یا قبلاً ثبت شده است.", show_alert=True)
         return
 
-    # فعال‌سازی بلافاصله وضعیت قفل
     await state.set_state(CustomerOrderState.submitting_order)
 
     data = await state.get_data()
@@ -407,8 +400,6 @@ async def finalize_order(callback: CallbackQuery, state: FSMContext, bot: Bot):
 
     await callback.message.edit_text(customer_success_text)
     await callback.answer("سفارش شما ثبت شد ✅")
-
-    # پاکسازی وضعیت برای جلوگیری از ارسال مجدد
     await state.clear()
 
     # ارسال اعلان اختصاصی به ادمین (ADMIN_ID)
@@ -419,7 +410,7 @@ async def finalize_order(callback: CallbackQuery, state: FSMContext, bot: Bot):
         f"🔖 **کد پیگیری:** `{tracking_code}` (شماره ثبت: #{order_id})\n"
         f"👤 **نام مشتری:** {customer_name}\n"
         f"📞 **شماره تماس:** `{customer_phone}`\n"
-        f"🆔 **شناسه تلگرام:** `{user_id}` ({user_username})\n"
+        f"🆔 **شناسه کاربری:** `{user_id}` ({user_username})\n"
         f"🚗 **خودرو:** {car_name}\n\n"
         f"🛠 **خدمات انتخاب‌شده ({len(selected_services)} مورد):**\n"
         f"{services_list_text}\n"

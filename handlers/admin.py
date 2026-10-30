@@ -4,7 +4,7 @@
 و مشاهده لیست کامل سفارش‌ها به همراه جزئیات و کد پیگیری.
 """
 import logging
-from aiogram import Router, F, Bot
+from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -26,8 +26,8 @@ admin_router = Router(name="admin_router")
 
 
 # فیلتر امنیتی سراسری برای این روتِر: فقط ادمین مجاز است
-@admin_router.message.filter(F.from_user.id == ADMIN_ID)
-@admin_router.callback_query.filter(F.from_user.id == ADMIN_ID)
+admin_router.message.filter(F.from_user.id == ADMIN_ID)
+admin_router.callback_query.filter(F.from_user.id == ADMIN_ID)
 
 
 # ---------------- ورود به پنل مدیریت ----------------
@@ -389,7 +389,6 @@ async def admin_view_orders(callback: CallbackQuery):
         text_parts.append(part)
 
     full_text = "\n".join(text_parts)
-    # اگر طول متن طولانی باشد تلگرام حداکثر ۴۰۹۶ کاراکتر می‌پذیرد
     if len(full_text) > 4000:
         full_text = full_text[:3950] + "\n\n... (سفارش‌های قدیمی‌تر در دیتابیس محفوظ هستند)"
 
