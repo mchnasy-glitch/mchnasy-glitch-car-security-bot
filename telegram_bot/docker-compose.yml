@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  telegram_bot:
+    build: .
+    container_name: car_antitheft_bot
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DB_PATH=/app/data/bot_database.db

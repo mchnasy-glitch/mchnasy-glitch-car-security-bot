@@ -1,0 +1,15 @@
+[Unit]
+Description=Car Anti-Theft Services Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/telegram_bot
+ExecStart=/var/www/telegram_bot/venv/bin/python3 /var/www/telegram_bot/main.py
+Restart=always
+RestartSec=5
+EnvironmentFile=/var/www/telegram_bot/.env
+
+[Install]
+WantedBy=multi-user.target
