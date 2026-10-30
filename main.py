@@ -2,9 +2,18 @@
 فایل اصلی اجرای بازوی (ربات) پیام‌رسان بله برای خدمات ضدسرقت خودرو
 توسعه‌داده شده با aiogram 3، اتصال مستقیم به سرور API بله (tapi.bale.ai) و دیتابیس SQLite
 """
+import os
+import sys
+from pathlib import Path
+
+# افزودن تضمینی دایرکتوری ریشه پروژه به مسیر جستجوی ماژول‌های پایتون (sys.path)
+# این کار مانع از بروز خطای ModuleNotFoundError: No module named 'handlers' در Render و Docker می‌شود
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 import asyncio
 import logging
-import sys
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties

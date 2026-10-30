@@ -16,3 +16,5 @@ services:
         sync: false
       - key: DB_PATH
         value: bot_database.db
+      - key: PYTHONPATH
+        value: .

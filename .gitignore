@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+*.db
+.dev.env.json
+.dev.pid

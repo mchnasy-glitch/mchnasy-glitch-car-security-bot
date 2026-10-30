@@ -18,9 +18,18 @@ export const BOT_FILES: BotFile[] = [
 فایل اصلی اجرای بازوی (ربات) پیام‌رسان بله برای خدمات ضدسرقت خودرو
 توسعه‌داده شده با aiogram 3، اتصال مستقیم به سرور API بله (tapi.bale.ai) و دیتابیس SQLite
 """
+import os
+import sys
+from pathlib import Path
+
+# افزودن تضمینی دایرکتوری ریشه پروژه به مسیر جستجوی ماژول‌های پایتون (sys.path)
+# این کار مانع از بروز خطای ModuleNotFoundError: No module named 'handlers' در Render و Docker می‌شود
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 import asyncio
 import logging
-import sys
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -616,6 +625,21 @@ def get_admin_back_to_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی مدیریت", callback_data="admin_main_menu")]
     ])
+`
+  },
+  {
+    path: 'handlers/__init__.py',
+    filename: '__init__.py',
+    language: 'python',
+    category: 'handlers',
+    description: 'فایل بسته‌بندی پایتون برای پکیج handlers و خروجی مستقیم روترها',
+    content: `"""
+ماژول کنترل‌کننده‌های پیام‌ها و دستورات ربات تلگرام و بله
+"""
+from handlers.customer import customer_router
+from handlers.admin import admin_router
+
+__all__ = ["customer_router", "admin_router"]
 `
   },
   {
@@ -1346,20 +1370,36 @@ DB_PATH=bot_database.db
     filename: 'Dockerfile',
     language: 'dockerfile',
     category: 'deploy',
-    description: 'فایل کانتینرسازی برای اجرای سریع و ایزوله در داکر',
+    description: 'فایل کانتینرسازی برای اجرای سریع و ایزوله در داکر با تنظیم PYTHONPATH=/app',
     content: `FROM python:3.11-slim
 
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \\
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \\
+    PYTHONPATH=/app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY . /app
 
 CMD ["python", "main.py"]
+`
+  },
+  {
+    path: '.dockerignore',
+    filename: '.dockerignore',
+    language: 'plaintext',
+    category: 'deploy',
+    description: 'نادیده‌گرفتن فایل‌های اضافی و پوشه node_modules در بیلد داکر',
+    content: `__pycache__/
+*.py[cod]
+.git/
+node_modules/
+dist/
+.env
+*.db
 `
   },
   {
@@ -1416,6 +1456,8 @@ services:
         sync: false
       - key: DB_PATH
         value: bot_database.db
+      - key: PYTHONPATH
+        value: .
 `
   },
   {
