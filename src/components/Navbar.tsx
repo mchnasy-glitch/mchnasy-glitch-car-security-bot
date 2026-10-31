@@ -19,7 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     <header className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
-          {/* لوگو و عنوان برند بله */}
+          {/* لوگو و عنوان ربات */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
               <Shield className="w-5 h-5 text-white" />
@@ -27,15 +27,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-sm sm:text-base font-extrabold text-white">
-                  بازوی پیام‌رسان بله | خدمات ضدسرقت خودرو
+                  ربات خدمات ضدسرقت خودرو
                 </h1>
                 <span className="hidden sm:inline-block text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono">
-                  bale.ai • aiogram 3 • SQLite
+                  aiogram 3 • SQLite • Render Ready
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                متصل به tapi.bale.ai • بدون نیاز به فیلترشکن و سازگار با سرورهای ایران
+                پشتیبانی از تلگرام و پیام‌رسان بله • آماده استقرار در Render Web Service (پلن کاملاً رایگان)
               </p>
+
             </div>
           </div>
 
@@ -50,7 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               }`}
             >
               <Smartphone className="w-3.5 h-3.5" />
-              <span>شبیه‌ساز بله</span>
+              <span>شبیه‌ساز بات</span>
             </button>
 
             <button
@@ -62,7 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               }`}
             >
               <FileCode2 className="w-3.5 h-3.5" />
-              <span>سورس کدهای بله</span>
+              <span>سورس کدها</span>
             </button>
 
             <button
@@ -86,18 +87,18 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span>راهنمای بله</span>
+              <span>راهنمای استقرار Render</span>
             </button>
           </nav>
 
-          {/* دکمه دانلود کل پروژه */}
+          {/* دکمه دانلود سورس ZIP */}
           <div className="shrink-0">
             <button
               onClick={downloadProjectZip}
               className="flex items-center gap-2 py-2 px-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95"
             >
               <Download className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">دانلود ZIP بله</span>
+              <span className="hidden md:inline">دانلود ZIP پروژه</span>
               <span className="md:hidden">ZIP</span>
             </button>
           </div>

@@ -1,66 +1,85 @@
-# 🛡 بازوی پیام‌رسان بله (و تلگرام) خدمات ضدسرقت خودرو
+# 🛡 بازوی پیام‌رسان بله و تلگرام خدمات ضدسرقت خودرو (Car Security Bot)
 
-این مخزن شامل کد کامل بازوی پیام‌رسان بله و تلگرام بر پایه **Python 3.10+**، فریم‌ورک مدرن **aiogram 3** و دیتابیس **SQLite** است.
-تمام فایل‌های اجرایی ربات مستقیماً در **ریشه اصلی (Root)** قرار دارند تا در پلتفرم‌هایی مانند **Render** یا **Railway** بدون نیاز به تنظیم Root Directory مستقیماً شناسایی و اجرا شوند.
+این پروژه یک ربات کامل، فارسی، راست‌به‌چپ و ماژولار است که بر پایه **Python 3.10+**، فریم‌ورک **aiogram 3** و دیتابیس **SQLite (aiosqlite)** توسعه یافته است.
+
+تمام فایل‌های اجرایی ربات مستقیماً در **ریشه اصلی (Root)** قرار دارند تا در پلتفرم‌هایی مانند **Render** یا **Docker** بدون هیچ پیش‌شرطی اجرا شوند.
 
 ---
 
-## 🚀 استقرار آنی در رندر (Render Deployment - بدون نیاز به Root Directory)
+## 💡 استقرار در Render در پلن کاملاً رایگان (Free Web Service)
 
-برای اجرای ۲۴ ساعته بازو در رندر:
+در پلتفرم Render بخش **Background Worker** پولی است (حداقل ۷ دلار در ماه). برای استفاده از **پلن ۱۰۰٪ رایگان (Free Tier)** باید نوع سرویس را روی **Web Service** قرار داد.
 
-1. وارد حساب کاربری خود در [Render.com](https://render.com) شوید.
-2. روی دکمه **New +** کلیک کرده و گزینه **Background Worker** را انتخاب کنید.
-3. مخزن (Repository) گیت‌هاب خود را متصل کنید.
-4. تنظیمات زیر به دلیل قرارگیری فایل‌ها در ریشه مخزن به صورت خودکار شناسایی می‌شوند:
-   - **Root Directory**: خالی بگذارید (Default /)
-   - **Environment**: `Python`
+### چگونگی حل خطای `No open ports detected`:
+سرویس‌های Web Service در رندر نیازمند باز بودن یک پورت HTTP برای بررسی سلامت سرویس (Health Check) هستند. این پروژه دارای یک وب‌سرور سبک درونی (`aiohttp.web`) است که به طور همزمان با ربات روی پورت `$PORT` (پیش‌فرض ۱۰،۰۰۰) اجرا می‌شود:
+- مسیرهای `/` و `/healthz` وضعیت سیستم را با کد `200 OK` برمی‌گردانند.
+- رندر پورت را شناسایی کرده و سرویس بدون خطا **Live** می‌شود.
+- در همان حین، ربات با بالاترین سرعت و به صورت **Long Polling** پیام‌های کاربران در تلگرام یا بله را پاسخ می‌دهد.
+
+---
+
+## 🚀 راهنمای گام‌به‌گام راه‌اندازی رایگان در Render (Web Service - Free)
+
+1. وارد پنل کاربری در [Render.com](https://render.com) شوید.
+2. روی دکمه **New +** کلیک کرده و گزینه **Web Service** را انتخاب کنید.
+3. مخزن گیت‌هاب پروژه را متصل نمایید.
+4. تنظیمات اولیه را به این صورت وارد کنید:
+   - **Name**: `car-security-bot`
+   - **Region**: مثلاً فرانکفورت (Frankfurt)
+   - **Root Directory**: **خالی** بگذارید (`/`)
+   - **Runtime**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `python main.py`
-5. در بخش **Environment Variables** متغیرهای زیر را اضافه کنید:
-   - `MESSENGER`: مقدار `bale` (برای بله) یا `telegram` (برای تلگرام)
-   - `BALE_API_URL`: مقدار `https://tapi.bale.ai`
-   - `BOT_TOKEN`: توکن دریافتی از @BotFather در بله
-   - `ADMIN_ID`: شناسه کاربری عددی شما در بله
-   - `DB_PATH`: مقدار `bot_database.db`
-6. دکمه **Create Background Worker** را بزنید. ربات شما فوراً اجرا شده و همیشه روشن خواهد ماند.
+   - **Instance Type**: حتماً گزینه **Free (رایگان)** را انتخاب کنید.
+5. در بخش **Health Check Path** (اختیاری)، مقدار `/healthz` را وارد کنید.
+6. در بخش **Environment Variables** متغیرهای زیر را ثبت کنید:
+   | نام متغیر | مقدار نمونه | توضیحات |
+   | :--- | :--- | :--- |
+   | `BOT_TOKEN` | `123456789:ABCdefGhI...` | توکن ربات از @BotFather (تلگرام یا بله) |
+   | `ADMIN_ID` | `987654321` | شناسه عددی اکانت کاربری شما برای دسترسی به `/admin` |
+   | `PORT` | `10000` | پورت وب‌سرور (رندر به صورت خودکار نیز تزریق می‌کند) |
+   | `MESSENGER` | `telegram` یا `bale` | انتخاب پلتفرم پیام‌رسان (پیش‌فرض: `telegram`) |
+   | `BALE_API_URL` | `https://tapi.bale.ai` | آدرس سرور بله (در صورت استفاده از بله) |
+   | `DB_PATH` | `bot_database.db` | مسیر ذخیره‌سازی فایل دیتابیس SQLite |
+   | `PYTHONPATH` | `.` | جهت شناسایی ماژول‌ها و پوشه handlers |
+7. روی دکمه **Create Web Service** کلیک کنید. ربات در عرض چند ثانیه بیلد و فعال خواهد شد.
 
-*(همچنین فایل `render.yaml` و `Procfile` در ریشه قرار دارند و Render Blueprint پشتیبانی می‌شود)*
+> **💡 نکته برای فعال نگه داشتن دائم (Always-On):**
+> سرورهای پلن رایگان رندر در صورت عدم دریافت ترافیک وب به مدت ۱۵ دقیقه به حالت Sleep می‌روند. برای جلوگیری از این حالت، می‌توانید آدرس اختصاصی وب‌سرویس خود در رندر (مثلاً `https://car-security-bot.onrender.com/ping`) را در سرویس‌های رایگان پینگ مثل [UptimeRobot](https://uptimerobot.com) یا [cron-job.org](https://cron-job.org) ثبت کنید تا هر ۱۰ دقیقه آن را پینگ کرده و ربات را همیشه بیدار نگه دارد.
 
 ---
 
-## 📂 ساختار فایل‌ها در ریشه مخزن (Root)
+## 🛠 رفع خطاهای متداول
+
+### ۱. خطای `RuntimeError: threads can only be started once`
+- **علت:** در کتابخانه `aiosqlite` فراخوانی چندباره کانکشن وارد context manager می‌شد.
+- **اصلاح:** تمام توابع `database.py` از طریق الگوی استاندارد `@asynccontextmanager` بازنویسی شدند و با قفل `asyncio.Lock` مقداردهی تک‌باره دیتابیس تضمین شده است.
+
+### ۲. خطای `ModuleNotFoundError: No module named 'handlers'`
+- **علت:** عدم تزریق ریشه پروژه به مسیر ماژول‌ها در Render.
+- **اصلاح:** ریشه پروژه در `main.py` از طریق `sys.path.insert(0, str(BASE_DIR))` به ابتدای مسیر ایمپورت‌ها اضافه شده و متغیر `PYTHONPATH=.` در کانفیگ‌ها ست شده است.
+
+---
+
+## 📂 ساختار فایل‌های پروژه
 
 ```text
 /
-├── main.py              # نقطه ورود و اجرای بازوی بله/تلگرام با aiogram 3
-├── config.py            # بارگذاری امن متغیرها بدون اطلاعات هاردکد
-├── database.py          # مدیریت SQLite و اسنپ‌شات دائمی سفارش‌ها
-├── states.py            # ماشین FSM مشتری و مدیر
-├── keyboards.py         # کیبوردهای اینلاین با چک‌باکس پویا (☑/◻)
-├── requirements.txt     # کتابخانه‌ها (aiogram>=3.4.1, aiosqlite, python-dotenv)
-├── .env.example         # نمونه متغیرهای محیطی
-├── Procfile             # دستور اجرای Worker در رندر: worker: python main.py
-├── render.yaml          # کانفیگ آماده Render Blueprint
-├── Dockerfile           # ایمیج داکر
-├── docker-compose.yml   # داکر کامپوز با ولوم دائمی
-├── bot.service          # سرویس لینوکس systemd برای سرورهای VPS
+├── main.py              # نقطه ورود ربات (aiogram 3 + سرور سبک سلامت aiohttp)
+├── config.py            # بارگذاری امن متغیرها با اعتبارسنجی خودکار
+├── database.py          # مدیریت کانکشن ایمن SQLite و اسنپ‌شات سفارش‌ها
+├── states.py            # ماشین وضعیت FSM برای جریان مشتری و مدیر
+├── keyboards.py         # کیبوردهای پویا همراه با تیک‌های انتخاب خدمات (☑/◻)
+├── requirements.txt     # کتابخانه‌ها (aiogram, aiohttp, aiosqlite, python-dotenv)
+├── .env.example         # راهنمای دقیق متغیرهای محیطی بدون مقادیر محرمانه
+├── render.yaml          # پیکربندی آماده Render Blueprint برای Web Service رایگان
+├── Procfile             # دستور web: python main.py
+├── Dockerfile           # ایمیج داکر با پورت EXPOSE 10000
+├── docker-compose.yml   # راه‌اندازی سریع داکر با ذخیره‌سازی دائمی
+├── bot.service          # سرویس systemd برای اجرای دائم روی سرور لینوکس
 │
 └── handlers/
-    ├── __init__.py
-    ├── customer.py      # مسیر مشتری: نام، اعتبارسنجی مالکیت شماره، انتخاب خدمات، کد پیگیری
-    └── admin.py         # پنل اختصاصی مدیر (/admin): مدیریت خودروها، خدمات و سفارش‌ها
-```
-
----
-
-## ⚡️ اجرای محلی (Local Run)
-
-```bash
-python3 -m venv venv
-source venv/bin/activate  # در ویندوز: venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-# مقادیر BOT_TOKEN و ADMIN_ID را در .env قرار دهید
-python main.py
+    ├── __init__.py      # معرفی ماژولار روترها
+    ├── customer.py      # ثبت سفارش، اعتبارسنجی شماره تلفن، انتخاب چندگانه و کد پیگیری
+    └── admin.py         # پنل اختصاصی مدیر (/admin) جهت مدیریت خودروها و خدمات
 ```

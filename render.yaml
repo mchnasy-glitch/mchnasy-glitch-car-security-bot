@@ -1,19 +1,26 @@
+# Render Blueprint Specification
+# پیکربندی استقرار به عنوان Web Service در پلن کاملاً رایگان (Free Tier - 0$)
+# دارای وب‌سرور سبک درونی جهت پاسخ به Health Check و رفع خطای No open ports detected
 services:
-  - type: worker
-    name: car-antitheft-bot
+  - type: web
+    name: car-security-bot
     env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     autoDeploy: true
+    healthCheckPath: /healthz
     envVars:
-      - key: MESSENGER
-        value: bale
-      - key: BALE_API_URL
-        value: https://tapi.bale.ai
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_ID
         sync: false
+      - key: PORT
+        value: 10000
+      - key: MESSENGER
+        value: telegram
+      - key: BALE_API_URL
+        value: https://tapi.bale.ai
       - key: DB_PATH
         value: bot_database.db
       - key: PYTHONPATH
