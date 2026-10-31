@@ -18,11 +18,12 @@ if env_path.exists():
 else:
     load_dotenv()
 
-# نوع پیام‌رسان: telegram یا bale (پیش‌فرض: telegram)
-MESSENGER = os.getenv("MESSENGER", "telegram").strip().lower()
+# نوع پیام‌رسان: bale یا telegram (پیش‌فرض: bale طبق درخواست کاربر)
+MESSENGER = os.getenv("MESSENGER", "bale").strip().lower()
 
-# آدرس سرور واسط بله (طبق مستندات رسمی بله: https://tapi.bale.ai)
+# آدرس سرور بازوی بله (طبق مستندات رسمی بله: https://tapi.bale.ai)
 BALE_API_URL = os.getenv("BALE_API_URL", "https://tapi.bale.ai").strip().rstrip("/")
+
 
 # دریافت توکن ربات از متغیرهای محیطی (با حذف فاصله‌ها و کوتیشن‌های احتمالی)
 _raw_bot_token = os.getenv("BOT_TOKEN", "").strip().strip('"').strip("'")

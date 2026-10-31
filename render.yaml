@@ -18,8 +18,9 @@ services:
       - key: PORT
         value: 10000
       - key: MESSENGER
-        value: telegram
+        value: bale
       - key: BALE_API_URL
+
         value: https://tapi.bale.ai
       - key: DB_PATH
         value: bot_database.db

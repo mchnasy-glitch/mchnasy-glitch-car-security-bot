@@ -104,23 +104,22 @@ async def main():
 
     # تنظیم کلاینت بات برای بله یا تلگرام
     if MESSENGER == "bale":
-        logger.info(f"اتصال به سرور API بله: {BALE_API_URL}")
-        bale_api_server = TelegramAPIServer(
-            base=f"{BALE_API_URL}/bot{{token}}/{{method}}",
-            file=f"{BALE_API_URL}/file/bot{{token}}/{{path}}"
-        )
-        session = AiohttpSession(api=bale_api_server)
+        logger.info(f"🔗 در حال اتصال به سرور رسمی بازوی بله (Bale API): {BALE_API_URL}")
+        # تنظیم آدرس پایه سرور بله طبق استاندارد aiogram 3 با TelegramAPIServer.from_base
+        bale_server = TelegramAPIServer.from_base(BALE_API_URL)
+        session = AiohttpSession(api=bale_server)
         bot = Bot(
             token=BOT_TOKEN,
             session=session,
             default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
         )
     else:
-        logger.info("اتصال مستقیم به سرورهای تلگرام")
+        logger.info("🔗 در حال اتصال مستقیم به سرورهای تلگرام (api.telegram.org)")
         bot = Bot(
             token=BOT_TOKEN,
             default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
         )
+
 
     dp = Dispatcher(storage=MemoryStorage())
 
