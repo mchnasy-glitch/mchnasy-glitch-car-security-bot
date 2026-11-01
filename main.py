@@ -25,8 +25,10 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 import database
 from config import BOT_TOKEN, ADMIN_ID, MESSENGER, BALE_API_URL, PORT
+from middlewares import AntiSpamMiddleware
 from handlers.customer import customer_router
 from handlers.admin import admin_router
+
 
 
 # تنظیمات لاگ استاندارد خروجی به stdout برای نمایش لحظه‌ای در لاگ‌های Render
@@ -123,9 +125,14 @@ async def main():
 
     dp = Dispatcher(storage=MemoryStorage())
 
-    # اتصال روترهای مشتری و مدیر
+    # اتصال میدلورهای امنیتی و ضداسپم (Rate Limiting و ممانعت از Flood)
+    dp.message.middleware(AntiSpamMiddleware(limit=0.8))
+    dp.callback_query.middleware(AntiSpamMiddleware(limit=0.4))
+
+    # اتصال روترهای مشتری و مدیر (روتر ادمین اولویت دارد)
     dp.include_router(admin_router)
     dp.include_router(customer_router)
+
 
     # اتصال هوک راه‌اندازی
     dp.startup.register(on_startup)

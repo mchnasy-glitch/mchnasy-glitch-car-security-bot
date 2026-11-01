@@ -25,9 +25,20 @@ logger = logging.getLogger(__name__)
 admin_router = Router(name="admin_router")
 
 
-# فیلتر امنیتی سراسری برای این روتِر: فقط ادمین مجاز است
+# فیلتر امنیتی سراسری برای این روتِر: دسترسی منحصراً برای ADMIN_ID مجاز است
 admin_router.message.filter(F.from_user.id == ADMIN_ID)
 admin_router.callback_query.filter(F.from_user.id == ADMIN_ID)
+
+
+def sanitize_input(text: str, max_length: int = 70) -> str:
+    """پاک‌سازی نام خودرو و عنوان خدمت جهت جلوگیری از خطاهای مارک‌داون و تزریق کدهای مخرب"""
+    if not text:
+        return ""
+    cleaned = "".join(ch for ch in text if ch.isprintable())
+    for char in ["*", "_", "`", "[", "]", "(", ")", "~", ">", "#", "+", "=", "|", "{", "}"]:
+        cleaned = cleaned.replace(char, "")
+    return cleaned.strip()[:max_length]
+
 
 
 # ---------------- ورود به پنل مدیریت ----------------
@@ -138,9 +149,10 @@ async def admin_start_add_car(callback: CallbackQuery, state: FSMContext):
 
 @admin_router.message(AdminState.adding_car_name, F.text)
 async def admin_finish_add_car(message: Message, state: FSMContext):
-    name = message.text.strip()
+    raw_name = message.text or ""
+    name = sanitize_input(raw_name, max_length=50)
     if len(name) < 2:
-        await message.answer("⚠️ لطفاً نام معتبری وارد کنید:")
+        await message.answer("⚠️ لطفاً نام معتبری (حداقل ۲ حرف) برای خودرو وارد کنید:")
         return
 
     car_id = await database.add_car(name)
@@ -157,6 +169,11 @@ async def admin_finish_add_car(message: Message, state: FSMContext):
         f"✅ خودرو «{name}» با موفقیت اضافه شد.\nمی‌توانید اکنون خدمات ضدسرقت اختصاصی آن را تعریف نمایید.",
         reply_markup=get_admin_main_keyboard()
     )
+
+
+@admin_router.message(AdminState.adding_car_name)
+async def admin_invalid_add_car(message: Message):
+    await message.answer("⚠️ لطفاً نام خودرو را فقط به صورت پیام متنی ارسال فرمایید (یا /admin برای انصراف):")
 
 
 # --- ویرایش نام خودرو ---
@@ -182,13 +199,18 @@ async def admin_start_edit_car_name(callback: CallbackQuery, state: FSMContext):
 
 @admin_router.message(AdminState.editing_car_name, F.text)
 async def admin_finish_edit_car_name(message: Message, state: FSMContext):
-    new_name = message.text.strip()
+    raw_name = message.text or ""
+    new_name = sanitize_input(raw_name, max_length=50)
     data = await state.get_data()
     car_id = data.get("editing_car_id")
     await state.clear()
 
     if not car_id:
         await message.answer("خطا در پردازش اطلاعات.", reply_markup=get_admin_main_keyboard())
+        return
+
+    if len(new_name) < 2:
+        await message.answer("⚠️ نام وارد شده بسیار کوتاه است. عملیات لغو شد.", reply_markup=get_admin_main_keyboard())
         return
 
     success = await database.update_car_name(car_id, new_name)
@@ -202,6 +224,12 @@ async def admin_finish_edit_car_name(message: Message, state: FSMContext):
             "❌ خطا: خودرویی با این نام در دیتابیس وجود دارد.",
             reply_markup=get_admin_main_keyboard()
         )
+
+
+@admin_router.message(AdminState.editing_car_name)
+async def admin_invalid_edit_car(message: Message):
+    await message.answer("⚠️ لطفاً نام جدید خودرو را صرفاً به صورت پیام متنی ارسال کنید:")
+
 
 
 # ---------------- مدیریت خدمات اختصاصی هر خودرو ----------------
@@ -300,13 +328,14 @@ async def admin_start_add_service(callback: CallbackQuery, state: FSMContext):
 
 @admin_router.message(AdminState.adding_service_name, F.text)
 async def admin_finish_add_service(message: Message, state: FSMContext):
-    name = message.text.strip()
+    raw_name = message.text or ""
+    name = sanitize_input(raw_name, max_length=90)
     data = await state.get_data()
     car_id = data.get("target_car_id")
     await state.clear()
 
     if not car_id or len(name) < 2:
-        await message.answer("⚠️ داده‌های نامعتبر. عملیات لغو شد.", reply_markup=get_admin_main_keyboard())
+        await message.answer("⚠️ عنوان خدمت نامعتبر یا بسیار کوتاه است. عملیات لغو شد.", reply_markup=get_admin_main_keyboard())
         return
 
     await database.add_service(car_id, name)
@@ -317,6 +346,11 @@ async def admin_finish_add_service(message: Message, state: FSMContext):
         f"✅ خدمت «{name}» با موفقیت به خودروی «{car_name}» اضافه شد.",
         reply_markup=get_admin_main_keyboard()
     )
+
+
+@admin_router.message(AdminState.adding_service_name)
+async def admin_invalid_add_service(message: Message):
+    await message.answer("⚠️ لطفاً عنوان خدمت را صرفاً به صورت پیام متنی ارسال فرمایید:")
 
 
 # --- ویرایش عنوان خدمت ---
@@ -342,13 +376,14 @@ async def admin_start_edit_service_name(callback: CallbackQuery, state: FSMConte
 
 @admin_router.message(AdminState.editing_service_name, F.text)
 async def admin_finish_edit_service_name(message: Message, state: FSMContext):
-    new_name = message.text.strip()
+    raw_name = message.text or ""
+    new_name = sanitize_input(raw_name, max_length=90)
     data = await state.get_data()
     service_id = data.get("editing_service_id")
     await state.clear()
 
     if not service_id or len(new_name) < 2:
-        await message.answer("⚠️ ورودی نامعتبر. عملیات لغو شد.", reply_markup=get_admin_main_keyboard())
+        await message.answer("⚠️ عنوان واردشده نامعتبر یا بسیار کوتاه است. عملیات لغو شد.", reply_markup=get_admin_main_keyboard())
         return
 
     await database.update_service_name(service_id, new_name)
@@ -356,6 +391,12 @@ async def admin_finish_edit_service_name(message: Message, state: FSMContext):
         f"✅ عنوان خدمت با موفقیت به «{new_name}» تغییر یافت.",
         reply_markup=get_admin_main_keyboard()
     )
+
+
+@admin_router.message(AdminState.editing_service_name)
+async def admin_invalid_edit_service(message: Message):
+    await message.answer("⚠️ لطفاً عنوان جدید خدمت را صرفاً به صورت متنی ارسال کنید:")
+
 
 
 # ---------------- مشاهده سفارش‌های ثبت‌شده ----------------

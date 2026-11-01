@@ -11,7 +11,7 @@ from typing import List
 
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 
 import database
@@ -27,6 +27,25 @@ from keyboards import (
 
 logger = logging.getLogger(__name__)
 customer_router = Router(name="customer_router")
+
+
+def sanitize_text(text: str, max_length: int = 60) -> str:
+    """
+    پاک‌سازی و بهینه‌سازی امنیتی ورودی‌های متنی کاربر:
+    - فیلتر کردن کاراکترهای مخرّب مارک‌داون جهت جلوگیری از خطای پارس در تلگرام و بله
+    - حذف کاراکترهای کنترلی نامرئی
+    - محدودسازی طول رشته جهت جلوگیری از سوءاستفاده‌های بافر و DoS
+    """
+    if not text:
+        return ""
+    # حذف کاراکترهای غیرقابل چاپ
+    cleaned = "".join(ch for ch in text if ch.isprintable())
+    # خنثی‌سازی نمادهای ساختاری مارک‌داون
+    for char in ["*", "_", "`", "[", "]", "(", ")", "~", ">", "#", "+", "=", "|", "{", "}"]:
+        cleaned = cleaned.replace(char, "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:max_length]
+
 
 
 def normalize_persian_numbers(text: str) -> str:
@@ -92,9 +111,12 @@ async def handle_cancel(event: Message | CallbackQuery, state: FSMContext):
 
 @customer_router.message(CustomerOrderState.waiting_for_name, F.text)
 async def process_customer_name(message: Message, state: FSMContext):
-    name = message.text.strip()
-    if len(name) < 3 or name.startswith("/"):
-        await message.answer("⚠️ لطفاً نام و نام خانوادگی معتبر (حداقل ۳ حرف) را وارد کنید:")
+    raw_text = message.text or ""
+    # اعمال پاک‌سازی امنیتی و حذف کاراکترهای مخرّب
+    name = sanitize_text(raw_text, max_length=50)
+
+    if len(name) < 3 or raw_text.startswith("/"):
+        await message.answer("⚠️ لطفاً نام و نام خانوادگی معتبر (بین ۳ تا ۵۰ حرف و بدون دستورات) وارد فرمایید:")
         return
 
     await state.update_data(customer_name=name)
@@ -106,6 +128,12 @@ async def process_customer_name(message: Message, state: FSMContext):
         "می‌توانید دکمه «📱 ارسال شماره من» در پایین صفحه را لمس کنید یا شماره خود را به صورت دستی (مثلاً 09123456789) تایپ کنید:"
     )
     await message.answer(prompt_phone, reply_markup=get_phone_request_keyboard())
+
+
+@customer_router.message(CustomerOrderState.waiting_for_name)
+async def process_invalid_name_content(message: Message):
+    """مدیریت ارسال استیکر، وویس، تصویر یا سایر پیام‌های غیرمتنی به جای نام"""
+    await message.answer("⚠️ لطفاً نام و نام خانوادگی خود را فقط به صورت متن تایپ و ارسال کنید:")
 
 
 # ---------------- دریافت و اعتبارسنجی شماره تلفن ----------------
@@ -137,10 +165,15 @@ async def process_phone_contact(message: Message, state: FSMContext):
 
 @customer_router.message(CustomerOrderState.waiting_for_phone, F.text)
 async def process_phone_manual(message: Message, state: FSMContext):
-    """دریافت شماره تلفن به صورت ورودی متنی دستی"""
-    raw_text = message.text.strip()
+    """دریافت شماره تلفن به صورت ورودی متنی دستی همراه با کنترل طول و اسپم"""
+    raw_text = (message.text or "").strip()
     if raw_text == "❌ انصراف از ثبت سفارش":
         await handle_cancel(message, state)
+        return
+
+    # جلوگیری از ورودی‌های بسیار طولانی یا حملات سرریز بافر
+    if len(raw_text) > 30:
+        await message.answer("⚠️ طول شماره تماس واردشده نامعتبر است. لطفاً شماره موبایل ۱۱ رقمی وارد کنید:")
         return
 
     normalized = validate_iranian_phone(raw_text)
@@ -154,6 +187,16 @@ async def process_phone_manual(message: Message, state: FSMContext):
         return
 
     await _proceed_to_car_selection(message, state, normalized)
+
+
+@customer_router.message(CustomerOrderState.waiting_for_phone)
+async def process_invalid_phone_content(message: Message):
+    """مدیریت ارسال فایل، استیکر یا محتوای غیرمجاز به جای شماره تلفن"""
+    await message.answer(
+        "⚠️ لطفاً شماره تلفن همراه خود را با دکمه «📱 ارسال شماره من» به اشتراک بگذارید یا ۱۱ رقم را به صورت پیام متنی ارسال کنید:",
+        reply_markup=get_phone_request_keyboard()
+    )
+
 
 
 async def _proceed_to_car_selection(message: Message, state: FSMContext, phone: str):
@@ -426,3 +469,33 @@ async def finalize_order(callback: CallbackQuery, state: FSMContext, bot: Bot):
         )
     except Exception as e:
         logger.error(f"خطا در ارسال اعلان به چت خصوصی ادمین ({ADMIN_ID}): {e}")
+
+
+# ---------------- محافظت در برابر پیام‌های نامربوط و دسترسی‌های غیرمجاز ----------------
+
+@customer_router.message(CustomerOrderState.selecting_car)
+async def ignore_text_during_car_selection(message: Message):
+    """هدایت کاربر در صورت تایپ تصادفی متن هنگام انتخاب مدل خودرو"""
+    await message.answer("👆 لطفاً مدل خودروی خود را با لمس دکمه‌های شیشه‌ای بالا انتخاب فرمایید:")
+
+
+@customer_router.message(CustomerOrderState.selecting_services)
+async def ignore_text_during_service_selection(message: Message):
+    """هدایت کاربر در صورت تایپ تصادفی متن هنگام انتخاب چک‌باکس خدمات"""
+    await message.answer("👆 لطفاً خدمات مورد نظر را با لمس گزینه‌های شیشه‌ای بالا انتخاب فرمایید:")
+
+
+@customer_router.message(Command("admin"))
+async def cmd_admin_unauthorized(message: Message):
+    """پاسخ امن به تلاش کاربران عادی برای دسترسی به پنل مدیریت"""
+    user_info = f"ID: {message.from_user.id} (@{message.from_user.username or 'بدون نام‌کاربری'})"
+    logger.warning(f"🚨 تلاش غیرمجاز برای ورود به پنل مدیریت (/admin) توسط: {user_info}")
+    await message.answer("⛔️ دسترسی غیرمجاز: این بخش منحصراً متعلق به مدیر سامانه است.")
+
+
+@customer_router.callback_query(F.data.startswith("admin_"))
+async def unauthorized_admin_callback(callback: CallbackQuery):
+    """جلوگیری قطعی از اجرای دکمه‌های ادمین توسط کاربران غیرمجاز"""
+    logger.warning(f"🚨 تلاش غیرمجاز برای ارسال کال‌بک ادمین ({callback.data}) توسط کاربر: {callback.from_user.id}")
+    await callback.answer("⛔️ شما مجاز به انجام این عملیات نیستید!", show_alert=True)
+
