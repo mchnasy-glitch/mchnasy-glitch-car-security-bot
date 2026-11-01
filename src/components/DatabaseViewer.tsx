@@ -95,7 +95,7 @@ export const DatabaseViewer: React.FC = () => {
                   <th className="py-3 px-4 font-semibold">خودرو اسنپ‌شات (car_name)</th>
                   <th className="py-3 px-4 font-semibold">خدمات درخواستی (services_snapshot)</th>
                   <th className="py-3 px-4 font-semibold">وضعیت</th>
-                  <th className="py-3 px-4 font-semibold">تاریخ و زمان ثبت</th>
+                  <th className="py-3 px-4 font-semibold">تاریخ و زمان ثبت (شمسی)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-200">

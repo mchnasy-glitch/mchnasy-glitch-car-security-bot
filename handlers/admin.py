@@ -5,9 +5,10 @@
 """
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+
 
 import database
 from config import ADMIN_ID
@@ -18,8 +19,11 @@ from keyboards import (
     get_admin_single_car_keyboard,
     get_admin_services_keyboard,
     get_admin_single_service_keyboard,
+    get_admin_confirm_delete_service_keyboard,
     get_admin_back_to_main_keyboard
 )
+from shamsi import to_shamsi_string
+
 
 logger = logging.getLogger(__name__)
 admin_router = Router(name="admin_router")
@@ -89,7 +93,7 @@ async def admin_cars_list(callback: CallbackQuery, state: FSMContext):
 
 @admin_router.callback_query(F.data.startswith("admin_view_car:"))
 async def admin_view_car(callback: CallbackQuery, state: FSMContext):
-    """مشاهده مشخصات یک خودرو"""
+    """مشاهده مشخصات یک خودرو و لیست خدمات آن"""
     await state.clear()
     car_id = int(callback.data.split(":")[1])
     car = await database.get_car_by_id(car_id)
@@ -100,14 +104,22 @@ async def admin_view_car(callback: CallbackQuery, state: FSMContext):
     services = await database.get_all_services_by_car(car_id)
     status_str = "🟢 فعال (قابل مشاهده برای مشتری)" if car["is_active"] else "🔴 غیرفعال (مخفی از دید مشتری)"
 
+    if services:
+        services_preview = "\n".join([f"    • {('🟢' if s['is_active'] else '🔴')} {s['name']}" for s in services])
+    else:
+        services_preview = "    (هنوز خدمتی برای این خودرو تعریف نشده است)"
+
     text = (
         f"🚗 **مشخصات خودرو:** {car['name']}\n"
         "━━━━━━━━━━━━━━━━━━\n"
         f"وضعیت کنونی: {status_str}\n"
-        f"تعداد خدمات تعریف شده: {len(services)} خدمت\n\n"
-        "عملیات مورد نظر را انتخاب کنید:"
+        f"تعداد خدمات تعریف شده: **{len(services)} خدمت**\n\n"
+        f"🛠 **فهرست خدمات کنونی:**\n"
+        f"{services_preview}\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "برای ویرایش عنوان، حذف یا تغییر خدمات، دکمه «✏️ ویرایش و مدیریت خدمات این خودرو» را لمس کنید:"
     )
-    await callback.message.edit_text(text, reply_markup=get_admin_single_car_keyboard(car))
+    await callback.message.edit_text(text, reply_markup=get_admin_single_car_keyboard(car, services_count=len(services)))
     await callback.answer()
 
 
@@ -123,15 +135,24 @@ async def admin_toggle_car(callback: CallbackQuery):
     services = await database.get_all_services_by_car(car_id)
 
     status_str = "🟢 فعال (قابل مشاهده برای مشتری)" if car["is_active"] else "🔴 غیرفعال (مخفی از دید مشتری)"
+    if services:
+        services_preview = "\n".join([f"    • {('🟢' if s['is_active'] else '🔴')} {s['name']}" for s in services])
+    else:
+        services_preview = "    (هنوز خدمتی برای این خودرو تعریف نشده است)"
+
     text = (
         f"🚗 **مشخصات خودرو:** {car['name']}\n"
         "━━━━━━━━━━━━━━━━━━\n"
         f"وضعیت کنونی: {status_str}\n"
-        f"تعداد خدمات تعریف شده: {len(services)} خدمت\n\n"
+        f"تعداد خدمات تعریف شده: **{len(services)} خدمت**\n\n"
+        f"🛠 **فهرست خدمات کنونی:**\n"
+        f"{services_preview}\n"
+        "━━━━━━━━━━━━━━━━━━\n"
         "وضعیت خودرو با موفقیت به‌روزرسانی شد."
     )
-    await callback.message.edit_text(text, reply_markup=get_admin_single_car_keyboard(car))
+    await callback.message.edit_text(text, reply_markup=get_admin_single_car_keyboard(car, services_count=len(services)))
     await callback.answer("وضعیت خودرو تغییر یافت.")
+
 
 
 # --- افزودن خودرو جدید ---
@@ -246,9 +267,10 @@ async def admin_car_services_list(callback: CallbackQuery, state: FSMContext):
 
     services = await database.get_all_services_by_car(car_id)
     text = (
-        f"🛠 **مدیریت خدمات اختصاصی خودرو: {car['name']}**\n"
+        f"🛠 **ویرایش و مدیریت خدمات اختصاصی خودرو: {car['name']}**\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "فهرست خدمات تعریف شده (برای ویرایش یا تغییر وضعیت لمس کنید):"
+        f"تعداد خدمات تعریف شده: **{len(services)} خدمت**\n\n"
+        "💡 جهت ویرایش عنوان، تغییر وضعیت فعال/غیرفعال یا حذف هر خدمت، گزینه‌های زیر را انتخاب فرمایید:"
     )
     await callback.message.edit_text(
         text,
@@ -259,7 +281,7 @@ async def admin_car_services_list(callback: CallbackQuery, state: FSMContext):
 
 @admin_router.callback_query(F.data.startswith("admin_view_service:"))
 async def admin_view_service(callback: CallbackQuery, state: FSMContext):
-    """مشاهده تنظیمات یک خدمت"""
+    """مشاهده مشخصات و تنظیمات یک خدمت"""
     await state.clear()
     service_id = int(callback.data.split(":")[1])
     service = await database.get_service_by_id(service_id)
@@ -269,10 +291,10 @@ async def admin_view_service(callback: CallbackQuery, state: FSMContext):
 
     status_str = "🟢 فعال (قابل انتخاب برای مشتری)" if service["is_active"] else "🔴 غیرفعال (مخفی از دید مشتری)"
     text = (
-        f"🛠 **مشخصات خدمت:**\n\n"
-        f"عنوان: **{service['name']}**\n"
-        f"وضعیت: {status_str}\n\n"
-        "عملیات مورد نظر را انتخاب کنید:"
+        f"🛠 **مشخصات و ویرایش خدمت:**\n\n"
+        f"عنوان خدمت: **{service['name']}**\n"
+        f"وضعیت کنونی: {status_str}\n\n"
+        "عملیات مورد نظر برای این خدمت را انتخاب کنید:"
     )
     await callback.message.edit_text(
         text,
@@ -293,7 +315,7 @@ async def admin_toggle_service(callback: CallbackQuery):
 
     status_str = "🟢 فعال (قابل انتخاب برای مشتری)" if service["is_active"] else "🔴 غیرفعال (مخفی از دید مشتری)"
     text = (
-        f"🛠 **مشخصات خدمت:**\n\n"
+        f"🛠 **مشخصات و ویرایش خدمت:**\n\n"
         f"عنوان: **{service['name']}**\n"
         f"وضعیت: {status_str}\n\n"
         "وضعیت خدمت با موفقیت به‌روزرسانی شد."
@@ -303,6 +325,56 @@ async def admin_toggle_service(callback: CallbackQuery):
         reply_markup=get_admin_single_service_keyboard(service)
     )
     await callback.answer("وضعیت خدمت تغییر یافت.")
+
+
+# --- حذف خدمت اختصاصی ---
+
+@admin_router.callback_query(F.data.startswith("admin_confirm_del_service:"))
+async def admin_confirm_del_service(callback: CallbackQuery):
+    """دریافت تأییدیه قبل از حذف قطعی خدمت"""
+    service_id = int(callback.data.split(":")[1])
+    service = await database.get_service_by_id(service_id)
+    if not service:
+        await callback.answer("خدمت یافت نشد!", show_alert=True)
+        return
+
+    text = (
+        "⚠️ **تأییدیه حذف قطعی خدمت**\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"آیا از حذف کامل خدمت زیر اطمینان دارید؟\n\n"
+        f"🛠 عنوان: **{service['name']}**\n\n"
+        "❌ پس از حذف، این خدمت دیگر در لیست انتخاب مشتریان نمایش داده نخواهد شد."
+    )
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_admin_confirm_delete_service_keyboard(service_id, service["car_id"])
+    )
+    await callback.answer()
+
+
+@admin_router.callback_query(F.data.startswith("admin_do_delete_service:"))
+async def admin_do_delete_service(callback: CallbackQuery):
+    """اجرای حذف قطعی خدمت و بازگشت به لیست خدمات"""
+    parts = callback.data.split(":")
+    service_id = int(parts[1])
+    car_id = int(parts[2])
+
+    await database.delete_service(service_id)
+    car = await database.get_car_by_id(car_id)
+    services = await database.get_all_services_by_car(car_id)
+
+    car_name = car["name"] if car else "خودرو"
+    text = (
+        "🗑 **خدمت با موفقیت حذف گردید.**\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"🛠 **فهرست خدمات اختصاصی خودرو: {car_name}**\n\n"
+        "می‌توانید سایر خدمات را ویرایش کنید یا خدمت جدیدی اضافه فرمایید:"
+    )
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_admin_services_keyboard(car_id, car_name, services)
+    )
+    await callback.answer("خدمت حذف شد ✅")
 
 
 # --- افزودن خدمت جدید به خودرو ---
@@ -342,9 +414,14 @@ async def admin_finish_add_service(message: Message, state: FSMContext):
     car = await database.get_car_by_id(car_id)
     car_name = car["name"] if car else "خودرو"
 
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"🛠 ویرایش و مشاهده خدمات «{car_name}»", callback_data=f"admin_car_services:{car_id}")],
+        [InlineKeyboardButton(text="🔙 بازگشت به منوی مدیریت", callback_data="admin_main_menu")]
+    ])
+
     await message.answer(
         f"✅ خدمت «{name}» با موفقیت به خودروی «{car_name}» اضافه شد.",
-        reply_markup=get_admin_main_keyboard()
+        reply_markup=keyboard
     )
 
 
@@ -386,10 +463,21 @@ async def admin_finish_edit_service_name(message: Message, state: FSMContext):
         await message.answer("⚠️ عنوان واردشده نامعتبر یا بسیار کوتاه است. عملیات لغو شد.", reply_markup=get_admin_main_keyboard())
         return
 
+    service = await database.get_service_by_id(service_id)
+    car_id = service["car_id"] if service else None
+    car = await database.get_car_by_id(car_id) if car_id else None
+    car_name = car["name"] if car else "خودرو"
+
     await database.update_service_name(service_id, new_name)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"🛠 بازگشت به خدمات خودرو «{car_name}»", callback_data=f"admin_car_services:{car_id}")],
+        [InlineKeyboardButton(text="🔙 بازگشت به منوی مدیریت", callback_data="admin_main_menu")]
+    ]) if car_id else get_admin_main_keyboard()
+
     await message.answer(
         f"✅ عنوان خدمت با موفقیت به «{new_name}» تغییر یافت.",
-        reply_markup=get_admin_main_keyboard()
+        reply_markup=keyboard
     )
 
 
@@ -399,11 +487,11 @@ async def admin_invalid_edit_service(message: Message):
 
 
 
-# ---------------- مشاهده سفارش‌های ثبت‌شده ----------------
+# ---------------- مشاهده سفارش‌های ثبت‌شده همراه با تاریخ شمسی ----------------
 
 @admin_router.callback_query(F.data == "admin_orders_list")
 async def admin_view_orders(callback: CallbackQuery):
-    """نمایش لیست سفارش‌های ثبت‌شده مشتریان همراه با کد پیگیری و جزئیات کامل"""
+    """نمایش لیست سفارش‌های ثبت‌شده مشتریان همراه با کد پیگیری و تاریخ شمسی"""
     orders = await database.get_all_orders(limit=25)
 
     if not orders:
@@ -418,13 +506,14 @@ async def admin_view_orders(callback: CallbackQuery):
     text_parts = ["📦 **آخرین سفارش‌های ثبت‌شده:**\n━━━━━━━━━━━━━━━━━━"]
     for idx, order in enumerate(orders, start=1):
         services_text = "\n".join([f"    • {s}" for s in order["services"]])
+        shamsi_order_date = to_shamsi_string(order.get("created_at"))
         part = (
             f"**{idx}. سفارش #{order['id']}** | کد پیگیری: `{order['tracking_code']}`\n"
             f"👤 مشتری: {order['customer_name']}\n"
             f"📞 تلفن: `{order['customer_phone']}`\n"
             f"🚗 خودرو (ثبت تاریخی): {order['car_name']}\n"
             f"🛠 خدمات ثبت شده:\n{services_text}\n"
-            f"📅 تاریخ ثبت: {order['created_at']}\n"
+            f"📅 تاریخ ثبت (شمسی): {shamsi_order_date}\n"
             "──────────────────"
         )
         text_parts.append(part)
@@ -435,3 +524,4 @@ async def admin_view_orders(callback: CallbackQuery):
 
     await callback.message.edit_text(full_text, reply_markup=get_admin_back_to_main_keyboard())
     await callback.answer()
+

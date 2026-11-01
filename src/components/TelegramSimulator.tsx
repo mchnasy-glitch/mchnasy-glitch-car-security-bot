@@ -728,10 +728,15 @@ export const TelegramSimulator: React.FC = () => {
         ? '🟢 فعال (قابل مشاهده برای مشتری)'
         : '🔴 غیرفعال (مخفی از دید مشتری)';
 
+      const srvListText = carSrvs.length > 0
+        ? '\n\n📋 **خدمات تعریف‌شده برای این خودرو:**\n' +
+          carSrvs.map(s => `  • ${s.isActive ? '🟢' : '🔴'} ${s.name}`).join('\n')
+        : '\n\n⚠️ هنوز هیچ خدمتی برای این خودرو ثبت نشده است.';
+
       addBotMessage(
-        `🚗 **مشخصات خودرو:** ${car.name}\n━━━━━━━━━━━━━━━━━━\nوضعیت کنونی: ${statusStr}\nتعداد خدمات تعریف شده: ${carSrvs.length} خدمت\n\nعملیات مورد نظر را انتخاب کنید:`,
+        `🚗 **مشخصات خودرو:** ${car.name}\n━━━━━━━━━━━━━━━━━━\nوضعیت کنونی: ${statusStr}\nتعداد خدمات تعریف شده: ${carSrvs.length} خدمت${srvListText}\n\nعملیات مورد نظر را انتخاب کنید:`,
         [
-          [{ text: '🛠 مدیریت خدمات این خودرو', callbackData: `admin_car_services:${car.id}` }],
+          [{ text: `✏️ ویرایش و مدیریت خدمات این خودرو (${carSrvs.length}) 🛠`, callbackData: `admin_car_services:${car.id}` }],
           [{ text: '✏️ ویرایش نام خودرو', callbackData: `admin_edit_car_name:${car.id}` }],
           [
             {
@@ -781,12 +786,25 @@ export const TelegramSimulator: React.FC = () => {
       if (!car) return;
 
       const carSrvs = services.filter(s => s.carId === carId);
-      const srvBtns: InlineButton[][] = carSrvs.map(s => [
-        {
-          text: `${s.isActive ? '🟢' : '🔴'} ${s.name}`,
-          callbackData: `admin_view_service:${s.id}`
-        }
-      ]);
+      const srvBtns: InlineButton[][] = [];
+      carSrvs.forEach(s => {
+        srvBtns.push([
+          {
+            text: `${s.isActive ? '🟢' : '🔴'} ${s.name}`,
+            callbackData: `admin_view_service:${s.id}`
+          }
+        ]);
+        srvBtns.push([
+          {
+            text: '✏️ ویرایش نام',
+            callbackData: `admin_edit_service_name:${s.id}`
+          },
+          {
+            text: s.isActive ? '🔴 غیرفعال‌سازی' : '🟢 فعال‌سازی',
+            callbackData: `admin_toggle_service:${s.id}`
+          }
+        ]);
+      });
       srvBtns.push([{ text: '➕ افزودن خدمت جدید به این خودرو', callbackData: `admin_add_service:${car.id}` }]);
       srvBtns.push([{ text: '🔙 بازگشت به مشخصات خودرو', callbackData: `admin_view_car:${car.id}` }]);
 

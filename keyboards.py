@@ -132,13 +132,14 @@ def get_admin_cars_keyboard(cars: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_admin_single_car_keyboard(car: Dict[str, Any]) -> InlineKeyboardMarkup:
-    """تنظیمات یک خودرو: تغییر نام، تغییر وضعیت و مدیریت خدمات اختصاصی"""
+def get_admin_single_car_keyboard(car: Dict[str, Any], services_count: int = 0) -> InlineKeyboardMarkup:
+    """تنظیمات یک خودرو: ویرایش خدمات، ویرایش نام خودرو و تغییر وضعیت فعال/غیرفعال"""
     toggle_text = "🔴 غیرفعال‌سازی این خودرو" if car["is_active"] else "🟢 فعال‌سازی این خودرو"
     toggle_cb = f"admin_toggle_car:{car['id']}:{0 if car['is_active'] else 1}"
+    srv_badge = f" ({services_count} خدمت)" if services_count > 0 else ""
 
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛠 مدیریت خدمات این خودرو", callback_data=f"admin_car_services:{car['id']}")],
+        [InlineKeyboardButton(text=f"✏️ ویرایش و مدیریت خدمات این خودرو{srv_badge} 🛠", callback_data=f"admin_car_services:{car['id']}")],
         [InlineKeyboardButton(text="✏️ ویرایش نام خودرو", callback_data=f"admin_edit_car_name:{car['id']}")],
         [InlineKeyboardButton(text=toggle_text, callback_data=toggle_cb)],
         [InlineKeyboardButton(text="🔙 بازگشت به لیست خودروها", callback_data="admin_cars_list")]
@@ -146,15 +147,24 @@ def get_admin_single_car_keyboard(car: Dict[str, Any]) -> InlineKeyboardMarkup:
 
 
 def get_admin_services_keyboard(car_id: int, car_name: str, services: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
-    """لیست خدمات تعریف شده برای یک خودرو در پنل مدیریت"""
+    """لیست خدمات تعریف شده برای یک خودرو با دکمه‌های مستقیم ویرایش، تغییر وضعیت و حذف"""
     buttons = []
     for srv in services:
         status_icon = "🟢" if srv["is_active"] else "🔴"
+        # دکمه مشخصات خدمت
         buttons.append([
             InlineKeyboardButton(
                 text=f"{status_icon} {srv['name']}",
                 callback_data=f"admin_view_service:{srv['id']}"
             )
+        ])
+        # دکمه‌های سریع عملیاتی برای هر خدمت
+        toggle_status_text = "🔴 غیرفعال" if srv["is_active"] else "🟢 فعال"
+        toggle_cb = f"admin_toggle_service:{srv['id']}:{0 if srv['is_active'] else 1}"
+        buttons.append([
+            InlineKeyboardButton(text="✏️ ویرایش نام", callback_data=f"admin_edit_service_name:{srv['id']}"),
+            InlineKeyboardButton(text=toggle_status_text, callback_data=toggle_cb),
+            InlineKeyboardButton(text="🗑 حذف", callback_data=f"admin_confirm_del_service:{srv['id']}")
         ])
 
     buttons.append([
@@ -167,15 +177,25 @@ def get_admin_services_keyboard(car_id: int, car_name: str, services: List[Dict[
 
 
 def get_admin_single_service_keyboard(service: Dict[str, Any]) -> InlineKeyboardMarkup:
-    """تنظیمات یک خدمت: ویرایش نام و تغییر وضعیت فعال/غیرفعال"""
-    toggle_text = "🔴 غیرفعال‌سازی خدمت" if service["is_active"] else "🟢 فعال‌سازی خدمت"
+    """تنظیمات یک خدمت: ویرایش نام، تغییر وضعیت و حذف"""
+    toggle_text = "🔴 غیرفعال‌سازی این خدمت" if service["is_active"] else "🟢 فعال‌سازی این خدمت"
     toggle_cb = f"admin_toggle_service:{service['id']}:{0 if service['is_active'] else 1}"
 
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✏️ ویرایش عنوان خدمت", callback_data=f"admin_edit_service_name:{service['id']}")],
         [InlineKeyboardButton(text=toggle_text, callback_data=toggle_cb)],
-        [InlineKeyboardButton(text="🔙 بازگشت به خدمات خودرو", callback_data=f"admin_car_services:{service['car_id']}")]
+        [InlineKeyboardButton(text="🗑 حذف کامل این خدمت", callback_data=f"admin_confirm_del_service:{service['id']}")],
+        [InlineKeyboardButton(text="🔙 بازگشت به لیست خدمات خودرو", callback_data=f"admin_car_services:{service['car_id']}")]
     ])
+
+
+def get_admin_confirm_delete_service_keyboard(service_id: int, car_id: int) -> InlineKeyboardMarkup:
+    """تأییدیه حذف قطعی یک خدمت"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ بله، این خدمت را حذف کن", callback_data=f"admin_do_delete_service:{service_id}:{car_id}")],
+        [InlineKeyboardButton(text="❌ انصراف و بازگشت", callback_data=f"admin_car_services:{car_id}")]
+    ])
+
 
 
 def get_admin_back_to_main_keyboard() -> InlineKeyboardMarkup:

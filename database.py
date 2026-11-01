@@ -252,6 +252,24 @@ async def toggle_service_active(service_id: int, is_active: bool) -> bool:
         return True
 
 
+async def delete_service(service_id: int) -> bool:
+    """حذف قطعی یک خدمت از دیتابیس"""
+    async with get_db_connection() as db:
+        await db.execute("DELETE FROM services WHERE id = ?", (service_id,))
+        await db.commit()
+        return True
+
+
+async def delete_car(car_id: int) -> bool:
+    """حذف خودرو و تمامی خدمات زیرمجموعه آن"""
+    async with get_db_connection() as db:
+        await db.execute("DELETE FROM services WHERE car_id = ?", (car_id,))
+        await db.execute("DELETE FROM cars WHERE id = ?", (car_id,))
+        await db.commit()
+        return True
+
+
+
 # ---------------- توابع مدیریت سفارشات ----------------
 
 async def save_order(

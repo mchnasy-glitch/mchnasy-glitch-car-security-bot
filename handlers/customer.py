@@ -17,7 +17,9 @@ from aiogram.fsm.context import FSMContext
 import database
 from config import ADMIN_ID
 from states import CustomerOrderState
+from shamsi import get_current_shamsi_datetime
 from keyboards import (
+
     get_phone_request_keyboard,
     get_cars_inline_keyboard,
     get_services_inline_keyboard,
@@ -426,13 +428,17 @@ async def finalize_order(callback: CallbackQuery, state: FSMContext, bot: Bot):
 
     services_list_text = "\n".join([f"  🔹 {s}" for s in selected_services])
 
+    # زمان ثبت به صورت شمسی و دقیق بر اساس ساعت رسمی کشور
+    shamsi_str = get_current_shamsi_datetime()
+
     # پیام نهایی برای مشتری
     customer_success_text = (
         "🎉 **سفارش شما با موفقیت ثبت شد!**\n"
         "━━━━━━━━━━━━━━━━━━\n"
         f"🔖 **کد پیگیری شما:** `{tracking_code}`\n"
         f"👤 نام: {customer_name}\n"
-        f"🚗 خودرو: {car_name}\n\n"
+        f"🚗 خودرو: {car_name}\n"
+        f"📅 تاریخ ثبت: **{shamsi_str}**\n\n"
         f"🛠 **خدمات درخواستی:**\n"
         f"{services_list_text}\n"
         "━━━━━━━━━━━━━━━━━━\n"
@@ -445,8 +451,7 @@ async def finalize_order(callback: CallbackQuery, state: FSMContext, bot: Bot):
     await callback.answer("سفارش شما ثبت شد ✅")
     await state.clear()
 
-    # ارسال اعلان اختصاصی به ادمین (ADMIN_ID)
-    now_str = datetime.datetime.now().strftime("%Y/%m/%d - %H:%M")
+    # ارسال اعلان اختصاصی به ادمین (ADMIN_ID) همراه با تاریخ شمسی
     admin_notification = (
         "🔔 **سفارش جدید خدمات ضدسرقت خودرو!**\n"
         "━━━━━━━━━━━━━━━━━━\n"
@@ -458,9 +463,10 @@ async def finalize_order(callback: CallbackQuery, state: FSMContext, bot: Bot):
         f"🛠 **خدمات انتخاب‌شده ({len(selected_services)} مورد):**\n"
         f"{services_list_text}\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        f"⏰ زمان ثبت: {now_str}\n"
+        f"📅 تاریخ و زمان ثبت (شمسی): **{shamsi_str}**\n"
         "💡 جهت مشاهده تمام سفارشات دستور /admin را ارسال کنید."
     )
+
 
     try:
         await bot.send_message(
