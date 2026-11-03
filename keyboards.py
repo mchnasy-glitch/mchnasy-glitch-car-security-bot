@@ -1,7 +1,7 @@
 """
 کیبوردهای شیشه‌ای (Inline) و معمولی (Reply) برای تعامل روان و کاملاً فارسی
 """
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
@@ -102,11 +102,18 @@ def get_summary_confirmation_keyboard() -> InlineKeyboardMarkup:
 
 # ---------------- کیبوردهای پنل مدیریت ----------------
 
-def get_admin_main_keyboard() -> InlineKeyboardMarkup:
-    """منوی اصلی پنل مدیریت"""
+def get_admin_main_keyboard(counts: Optional[Dict[str, int]] = None) -> InlineKeyboardMarkup:
+    """منوی اصلی پنل مدیریت همراه با برچسب تعداد سفارش‌های جدید"""
+    if counts and counts.get("pending", 0) > 0:
+        orders_btn_text = f"📦 مدیریت سفارش‌ها (⏳ {counts['pending']} جدید)"
+    elif counts and counts.get("total", 0) > 0:
+        orders_btn_text = f"📦 مدیریت سفارش‌ها ({counts['total']})"
+    else:
+        orders_btn_text = "📦 مدیریت سفارش‌ها و CRM"
+
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚗 مدیریت خودروها و خدمات", callback_data="admin_cars_list")],
-        [InlineKeyboardButton(text="📦 مشاهده سفارش‌های ثبت‌شده", callback_data="admin_orders_list")],
+        [InlineKeyboardButton(text=orders_btn_text, callback_data="admin_orders_list")],
         [InlineKeyboardButton(text="🔄 تازه‌سازی اطلاعات", callback_data="admin_refresh")]
     ])
 
@@ -203,3 +210,97 @@ def get_admin_back_to_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی مدیریت", callback_data="admin_main_menu")]
     ])
+
+
+# ---------------- کیبوردهای CRM و پیگیری سفارش‌ها ----------------
+
+def get_admin_order_notification_keyboard(order_id: int, status: str = "pending") -> InlineKeyboardMarkup:
+    """
+    کیبورد شیشه‌ای زیر پیام اعلان سفارش جدید برای مدیر:
+    امکان تغییر وضعیت سریع به 'تماس‌گرفته‌شده' با یک کلیک
+    """
+    if status == "contacted":
+        btn = InlineKeyboardButton(
+            text="↩️ بازگردانی به منتظر تماس",
+            callback_data=f"admin_mark_pending:{order_id}"
+        )
+    else:
+        btn = InlineKeyboardButton(
+            text="✅ ثبت به عنوان تماس‌گرفته‌شده",
+            callback_data=f"admin_mark_contacted:{order_id}"
+        )
+
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [btn],
+        [InlineKeyboardButton(text="📦 مشاهده کل سفارش‌ها (CRM)", callback_data="admin_orders_list")]
+    ])
+
+
+def get_admin_orders_menu_keyboard(counts: Dict[str, int]) -> InlineKeyboardMarkup:
+    """
+    منوی مدیریت و فیلتربندی سفارش‌ها در پنل مدیریت:
+    - تفکیک سفارش‌های جدید و در انتظار تماس
+    - تفکیک سفارش‌های پیگیری و تماس‌گرفته‌شده
+    - مشاهده کل سفارش‌ها
+    """
+    pending_cnt = counts.get("pending", 0)
+    contacted_cnt = counts.get("contacted", 0)
+    total_cnt = counts.get("total", 0)
+
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text=f"⏳ سفارش‌های جدید و در انتظار تماس ({pending_cnt})",
+                callback_data="admin_orders_filter:pending"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"✅ سفارش‌های تماس‌گرفته‌شده ({contacted_cnt})",
+                callback_data="admin_orders_filter:contacted"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"📋 تمام سفارش‌ها ({total_cnt})",
+                callback_data="admin_orders_filter:all"
+            )
+        ],
+        [
+            InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی مدیریت", callback_data="admin_main_menu")
+        ]
+    ])
+
+
+def get_admin_orders_list_keyboard(
+    orders: List[Dict[str, Any]],
+    current_filter: str = "all"
+) -> InlineKeyboardMarkup:
+    """
+    کیبورد زیر لیست سفارش‌ها شامل دکمه‌های اقدام سریع (Action Buttons) برای هر سفارش
+    """
+    buttons = []
+
+    # دکمه‌های سریع برای تغییر وضعیت هر سفارش نمایش داده شده در این لیست
+    for order in orders[:10]:
+        o_id = order["id"]
+        o_status = order.get("status", "pending")
+        if o_status == "pending" or o_status == "ثبت شده":
+            btn_text = f"✅ ثبت تماس سفارش #{o_id} ({order['customer_name']})"
+            cb_data = f"admin_toggle_order_status:{o_id}:contacted:{current_filter}"
+        else:
+            btn_text = f"↩️ تغییر به منتظر تماس #{o_id}"
+            cb_data = f"admin_toggle_order_status:{o_id}:pending:{current_filter}"
+
+        buttons.append([InlineKeyboardButton(text=btn_text, callback_data=cb_data)])
+
+    # دکمه‌های ناوبری پایین لیست
+    buttons.append([
+        InlineKeyboardButton(text="🔄 بروزرسانی این لیست", callback_data=f"admin_orders_filter:{current_filter}"),
+        InlineKeyboardButton(text="📂 دسته‌بندی سفارش‌ها (CRM)", callback_data="admin_orders_list")
+    ])
+    buttons.append([
+        InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی مدیریت", callback_data="admin_main_menu")
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

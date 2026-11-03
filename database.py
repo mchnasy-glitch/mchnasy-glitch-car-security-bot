@@ -77,7 +77,7 @@ async def init_db():
                 )
             """)
 
-            # جدول سفارش‌ها (حاوی اسنپ‌شات دائمی از نام خودرو و خدمات برای جلوگیری از مخدوش شدن سوابق)
+            # جدول سفارش‌ها (حاوی اسنپ‌شات دائمی از نام خودرو، خدمات و وضعیت پیگیری CRM)
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,10 +88,19 @@ async def init_db():
                     car_id INTEGER,
                     car_name TEXT NOT NULL,
                     services_snapshot TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'ثبت شده',
+                    status TEXT NOT NULL DEFAULT 'pending',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+
+            # مایگریشن برای دیتابیس‌های موجود: اطمینان از وجود ستون status و تبدیل مقادیر قدیمی
+            async with db.execute("PRAGMA table_info(orders);") as cursor:
+                cols = [row["name"] for row in await cursor.fetchall()]
+                if "status" not in cols:
+                    await db.execute("ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'pending';")
+                else:
+                    # همگام‌سازی وضعیت‌های متنی قدیمی به مقدار استاندارد 'pending'
+                    await db.execute("UPDATE orders SET status = 'pending' WHERE status = 'ثبت شده' OR status IS NULL OR status = '';")
 
             await db.commit()
 
@@ -283,8 +292,7 @@ async def save_order(
 ) -> int:
     """
     ثبت سفارش نهایی با اسنپ‌شات کامل نام خودرو و لیست خدمات.
-    این ساختار تضمین می‌کند که تغییر یا حذف خودرو و خدمت در آینده هیچ تأثیری
-    بر نام و جزئیات ثبت شده در این سفارش نخواهد داشت.
+    وضعیت پیش‌فرض: 'pending' (منتظر پیگیری و تماس)
     """
     services_json = json.dumps(services_list, ensure_ascii=False)
     async with get_db_connection() as db:
@@ -293,12 +301,48 @@ async def save_order(
             INSERT INTO orders (
                 tracking_code, user_id, customer_name, customer_phone,
                 car_id, car_name, services_snapshot, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ثبت شده')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
             """,
             (tracking_code, user_id, customer_name, customer_phone, car_id, car_name, services_json)
         )
         await db.commit()
         return cursor.lastrowid
+
+
+async def update_order_status(order_id: int, new_status: str) -> bool:
+    """
+    به‌روزرسانی وضعیت پیگیری یک سفارش (مثلاً: 'contacted' یا 'pending')
+    """
+    async with get_db_connection() as db:
+        cursor = await db.execute(
+            "UPDATE orders SET status = ? WHERE id = ?",
+            (new_status.strip(), order_id)
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def get_order_by_id(order_id: int) -> Optional[Dict[str, Any]]:
+    """یافتن مشخصات یک سفارش بر اساس شناسه عددی id"""
+    async with get_db_connection() as db:
+        async with db.execute(
+            """
+            SELECT id, tracking_code, user_id, customer_name, customer_phone,
+                   car_id, car_name, services_snapshot, status, created_at
+            FROM orders
+            WHERE id = ?
+            """,
+            (order_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            item = dict(row)
+            try:
+                item["services"] = json.loads(item["services_snapshot"])
+            except Exception:
+                item["services"] = [item["services_snapshot"]]
+            return item
 
 
 async def get_all_orders(limit: int = 50) -> List[Dict[str, Any]]:
@@ -307,7 +351,7 @@ async def get_all_orders(limit: int = 50) -> List[Dict[str, Any]]:
         async with db.execute(
             """
             SELECT id, tracking_code, user_id, customer_name, customer_phone,
-                   car_name, services_snapshot, status, created_at
+                   car_id, car_name, services_snapshot, status, created_at
             FROM orders
             ORDER BY id DESC
             LIMIT ?
@@ -326,13 +370,79 @@ async def get_all_orders(limit: int = 50) -> List[Dict[str, Any]]:
             return result
 
 
+async def get_orders_by_status(status: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    """
+    دریافت لیست سفارش‌ها بر اساس وضعیت پیگیری:
+    - 'pending': سفارش‌های جدید و در انتظار تماس
+    - 'contacted': سفارش‌های پیگیری و تماس‌گرفته‌شده
+    - None یا 'all': تمام سفارش‌ها
+    """
+    async with get_db_connection() as db:
+        if status and status != "all":
+            query = """
+                SELECT id, tracking_code, user_id, customer_name, customer_phone,
+                       car_id, car_name, services_snapshot, status, created_at
+                FROM orders
+                WHERE status = ?
+                ORDER BY id DESC
+                LIMIT ?
+            """
+            params = (status, limit)
+        else:
+            query = """
+                SELECT id, tracking_code, user_id, customer_name, customer_phone,
+                       car_id, car_name, services_snapshot, status, created_at
+                FROM orders
+                ORDER BY id DESC
+                LIMIT ?
+            """
+            params = (limit,)
+
+        async with db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            result = []
+            for r in rows:
+                item = dict(r)
+                try:
+                    item["services"] = json.loads(item["services_snapshot"])
+                except Exception:
+                    item["services"] = [item["services_snapshot"]]
+                result.append(item)
+            return result
+
+
+async def get_orders_counts() -> Dict[str, int]:
+    """دریافت آمار تعداد سفارش‌ها به تفکیک وضعیت (جهت درج در دکمه‌های منو)"""
+    async with get_db_connection() as db:
+        total = 0
+        pending = 0
+        contacted = 0
+
+        async with db.execute("SELECT status, COUNT(*) as cnt FROM orders GROUP BY status") as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                st = row["status"]
+                cnt = row["cnt"]
+                total += cnt
+                if st == "pending" or st == "ثبت شده":
+                    pending += cnt
+                elif st == "contacted":
+                    contacted += cnt
+
+        return {
+            "total": total,
+            "pending": pending,
+            "contacted": contacted
+        }
+
+
 async def get_order_by_tracking_code(tracking_code: str) -> Optional[Dict[str, Any]]:
     """یافتن سفارش با کد پیگیری"""
     async with get_db_connection() as db:
         async with db.execute(
             """
             SELECT id, tracking_code, user_id, customer_name, customer_phone,
-                   car_name, services_snapshot, status, created_at
+                   car_id, car_name, services_snapshot, status, created_at
             FROM orders
             WHERE tracking_code = ?
             """,

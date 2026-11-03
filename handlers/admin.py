@@ -20,7 +20,10 @@ from keyboards import (
     get_admin_services_keyboard,
     get_admin_single_service_keyboard,
     get_admin_confirm_delete_service_keyboard,
-    get_admin_back_to_main_keyboard
+    get_admin_back_to_main_keyboard,
+    get_admin_order_notification_keyboard,
+    get_admin_orders_menu_keyboard,
+    get_admin_orders_list_keyboard
 )
 from shamsi import to_shamsi_string
 
@@ -49,30 +52,46 @@ def sanitize_input(text: str, max_length: int = 70) -> str:
 
 @admin_router.message(Command("admin"))
 async def cmd_admin(message: Message, state: FSMContext):
-    """ورود به پنل مدیریت با دستور /admin"""
+    """ورود به پنل مدیریت با دستور /admin همراه با خلاصه CRM"""
     await state.clear()
+    counts = await database.get_orders_counts()
     welcome_text = (
         "👑 **به پنل مدیریت سامانه خدمات ضدسرقت خوش آمدید**\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "از طریق گزینه‌های زیر می‌توانید خودروها، خدمات و سفارش‌های ثبت‌شده را به راحتی مدیریت کنید:"
+        f"📊 **خلاصه وضعیت سفارش‌ها (CRM):**\n"
+        f"⏳ در انتظار تماس: **{counts['pending']}** | ✅ تماس‌گرفته‌شده: **{counts['contacted']}**\n\n"
+        "از طریق گزینه‌های زیر بخش مورد نظر خود را انتخاب فرمایید:"
     )
-    await message.answer(welcome_text, reply_markup=get_admin_main_keyboard())
+    await message.answer(welcome_text, reply_markup=get_admin_main_keyboard(counts))
 
 
 @admin_router.callback_query(F.data == "admin_main_menu")
 async def back_to_admin_main(callback: CallbackQuery, state: FSMContext):
     await state.clear()
+    counts = await database.get_orders_counts()
     welcome_text = (
         "👑 **پنل مدیریت خدمات ضدسرقت خودرو**\n"
         "━━━━━━━━━━━━━━━━━━\n"
+        f"📊 **خلاصه وضعیت سفارش‌ها (CRM):**\n"
+        f"⏳ در انتظار تماس: **{counts['pending']}** | ✅ تماس‌گرفته‌شده: **{counts['contacted']}**\n\n"
         "لطفاً بخش مورد نظر خود را انتخاب نمایید:"
     )
-    await callback.message.edit_text(welcome_text, reply_markup=get_admin_main_keyboard())
+    await callback.message.edit_text(welcome_text, reply_markup=get_admin_main_keyboard(counts))
     await callback.answer()
 
 
 @admin_router.callback_query(F.data == "admin_refresh")
 async def handle_admin_refresh(callback: CallbackQuery):
+    counts = await database.get_orders_counts()
+    welcome_text = (
+        "👑 **پنل مدیریت خدمات ضدسرقت خودرو**\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "اطلاعات به‌روزرسانی شد 🔄\n\n"
+        f"📊 **خلاصه وضعیت سفارش‌ها (CRM):**\n"
+        f"⏳ در انتظار تماس: **{counts['pending']}** | ✅ تماس‌گرفته‌شده: **{counts['contacted']}**\n\n"
+        "لطفاً بخش مورد نظر خود را انتخاب نمایید:"
+    )
+    await callback.message.edit_text(welcome_text, reply_markup=get_admin_main_keyboard(counts))
     await callback.answer("اطلاعات به‌روزرسانی شد 🔄")
 
 
@@ -487,41 +506,156 @@ async def admin_invalid_edit_service(message: Message):
 
 
 
-# ---------------- مشاهده سفارش‌های ثبت‌شده همراه با تاریخ شمسی ----------------
+# ---------------- سیستم مدیریت پیگیری سفارش‌ها (CRM کوچک) ----------------
+
+@admin_router.callback_query(F.data.startswith("admin_mark_contacted:"))
+async def admin_mark_order_contacted(callback: CallbackQuery):
+    """
+    هندلر کلیک روی دکمه «ثبت به عنوان تماس‌گرفته‌شده» در پیام اعلان سفارش
+    """
+    order_id = int(callback.data.split(":")[1])
+    await database.update_order_status(order_id, "contacted")
+
+    current_text = callback.message.text or ""
+    if "⏳ منتظر پیگیری (تماس گرفته نشده)" in current_text:
+        new_text = current_text.replace(
+            "⏳ منتظر پیگیری (تماس گرفته نشده)",
+            "✅ تماس گرفته شد (پیگیری شده)"
+        )
+    elif "📌 **وضعیت پیگیری:**" in current_text:
+        new_text = current_text + "\n\n*(وضعیت به «تماس‌گرفته‌شده» تغییر یافت ✅)*"
+    else:
+        new_text = current_text + "\n\n📌 **وضعیت پیگیری:** ✅ تماس گرفته شد (پیگیری شده)"
+
+    if "👇 پس از تماس تلفنی با مشتری، دکمه زیر را لمس کنید:" in new_text:
+        new_text = new_text.replace(
+            "👇 پس از تماس تلفنی با مشتری، دکمه زیر را لمس کنید:",
+            "🎉 این سفارش با موفقیت پیگیری و تماس حاصل شد."
+        )
+
+    await callback.message.edit_text(
+        new_text,
+        reply_markup=get_admin_order_notification_keyboard(order_id, status="contacted")
+    )
+    await callback.answer("✅ وضعیت سفارش با موفقیت به «تماس‌گرفته‌شده» تغییر یافت.", show_alert=False)
+
+
+@admin_router.callback_query(F.data.startswith("admin_mark_pending:"))
+async def admin_mark_order_pending(callback: CallbackQuery):
+    """
+    امکان بازگردانی وضعیت سفارش به 'در انتظار تماس' در صورت کلیک اشتباه
+    """
+    order_id = int(callback.data.split(":")[1])
+    await database.update_order_status(order_id, "pending")
+
+    current_text = callback.message.text or ""
+    if "✅ تماس گرفته شد (پیگیری شده)" in current_text:
+        new_text = current_text.replace(
+            "✅ تماس گرفته شد (پیگیری شده)",
+            "⏳ منتظر پیگیری (تماس گرفته نشده)"
+        )
+    else:
+        new_text = current_text + "\n\n📌 **وضعیت پیگیری:** ⏳ منتظر پیگیری (تماس گرفته نشده)"
+
+    await callback.message.edit_text(
+        new_text,
+        reply_markup=get_admin_order_notification_keyboard(order_id, status="pending")
+    )
+    await callback.answer("↩️ وضعیت سفارش به «منتظر تماس» بازگردانده شد.", show_alert=False)
+
 
 @admin_router.callback_query(F.data == "admin_orders_list")
-async def admin_view_orders(callback: CallbackQuery):
-    """نمایش لیست سفارش‌های ثبت‌شده مشتریان همراه با کد پیگیری و تاریخ شمسی"""
-    orders = await database.get_all_orders(limit=25)
+async def admin_orders_menu(callback: CallbackQuery):
+    """
+    منوی مدیریت و فیلتربندی سفارش‌ها بر اساس وضعیت پیگیری CRM
+    """
+    counts = await database.get_orders_counts()
+    text = (
+        "📦 **مدیریت سفارش‌ها و پیگیری مشتریان (CRM)**\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "در این بخش می‌توانید وضعیت تماس و هماهنگی با مشتریان را پیگیری و مدیریت کنید:\n\n"
+        f"⏳ **سفارش‌های جدید و در انتظار تماس:** {counts['pending']} مورد\n"
+        f"✅ **سفارش‌های تماس‌گرفته‌شده:** {counts['contacted']} مورد\n"
+        f"📊 **مجموع کل سفارش‌ها:** {counts['total']} مورد\n\n"
+        "جهت مشاهده سفارش‌ها، لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید:"
+    )
+    await callback.message.edit_text(text, reply_markup=get_admin_orders_menu_keyboard(counts))
+    await callback.answer()
+
+
+@admin_router.callback_query(F.data.startswith("admin_orders_filter:"))
+async def admin_orders_filter_view(callback: CallbackQuery):
+    """
+    نمایش لیست فیلترشده سفارش‌ها همراه با جزئیات کامل، تاریخ شمسی و دکمه‌های اقدام سریع
+    """
+    filter_type = callback.data.split(":")[1]
+    orders = await database.get_orders_by_status(filter_type, limit=20)
+
+    titles = {
+        "pending": "⏳ سفارش‌های جدید و در انتظار تماس",
+        "contacted": "✅ سفارش‌های تماس‌گرفته‌شده",
+        "all": "📋 تمام سفارش‌های ثبت‌شده"
+    }
+    title = titles.get(filter_type, "سفارش‌ها")
 
     if not orders:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📂 دسته‌بندی سفارش‌ها (CRM)", callback_data="admin_orders_list")],
+            [InlineKeyboardButton(text="🔙 بازگشت به منوی مدیریت", callback_data="admin_main_menu")]
+        ])
         await callback.message.edit_text(
-            "📦 **سفارش‌های ثبت‌شده:**\n\n"
-            "هنوز هیچ سفارشی در سامانه ثبت نشده است.",
-            reply_markup=get_admin_back_to_main_keyboard()
+            f"**{title}**\n\n"
+            "⚠️ در حال حاضر هیچ سفارشی در این وضعیت ثبت نشده است.",
+            reply_markup=keyboard
         )
         await callback.answer()
         return
 
-    text_parts = ["📦 **آخرین سفارش‌های ثبت‌شده:**\n━━━━━━━━━━━━━━━━━━"]
+    text_parts = [f"**{title} ({len(orders)} مورد اخیر):**\n━━━━━━━━━━━━━━━━━━"]
     for idx, order in enumerate(orders, start=1):
         services_text = "\n".join([f"    • {s}" for s in order["services"]])
         shamsi_order_date = to_shamsi_string(order.get("created_at"))
+        o_status = order.get("status", "pending")
+        status_label = "✅ تماس گرفته شد" if o_status == "contacted" else "⏳ در انتظار تماس"
+
         part = (
             f"**{idx}. سفارش #{order['id']}** | کد پیگیری: `{order['tracking_code']}`\n"
-            f"👤 مشتری: {order['customer_name']}\n"
-            f"📞 تلفن: `{order['customer_phone']}`\n"
-            f"🚗 خودرو (ثبت تاریخی): {order['car_name']}\n"
-            f"🛠 خدمات ثبت شده:\n{services_text}\n"
+            f"👤 مشتری: **{order['customer_name']}**\n"
+            f"📞 تلفن تماس: `{order['customer_phone']}`\n"
+            f"🚗 خودرو: **{order['car_name']}**\n"
+            f"🛠 خدمات انتخابی:\n{services_text}\n"
             f"📅 تاریخ ثبت (شمسی): {shamsi_order_date}\n"
+            f"📌 وضعیت پیگیری: **{status_label}**\n"
             "──────────────────"
         )
         text_parts.append(part)
 
     full_text = "\n".join(text_parts)
     if len(full_text) > 4000:
-        full_text = full_text[:3950] + "\n\n... (سفارش‌های قدیمی‌تر در دیتابیس محفوظ هستند)"
+        full_text = full_text[:3950] + "\n\n... (سفارش‌های بیشتر در دیتابیس محفوظ هستند)"
 
-    await callback.message.edit_text(full_text, reply_markup=get_admin_back_to_main_keyboard())
+    await callback.message.edit_text(
+        full_text,
+        reply_markup=get_admin_orders_list_keyboard(orders, current_filter=filter_type)
+    )
     await callback.answer()
+
+
+@admin_router.callback_query(F.data.startswith("admin_toggle_order_status:"))
+async def admin_toggle_order_status(callback: CallbackQuery):
+    """
+    تغییر سریع وضعیت سفارش از درون لیست فیلترشده و رفرش آنی صفحه
+    """
+    parts = callback.data.split(":")
+    order_id = int(parts[1])
+    new_status = parts[2]
+    current_filter = parts[3] if len(parts) > 3 else "all"
+
+    await database.update_order_status(order_id, new_status)
+    status_label = "تماس‌گرفته‌شده" if new_status == "contacted" else "در انتظار تماس"
+    await callback.answer(f"سفارش #{order_id} به وضعیت «{status_label}» تغییر یافت ✅")
+
+    # بازخوانی لیست با همان فیلتر فعلی
+    callback.data = f"admin_orders_filter:{current_filter}"
+    await admin_orders_filter_view(callback)
 

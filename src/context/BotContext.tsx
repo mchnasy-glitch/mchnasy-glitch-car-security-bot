@@ -15,6 +15,7 @@ interface BotContextType {
   addService: (carId: number, name: string) => { success: boolean; error?: string; serviceId?: number };
   updateServiceName: (serviceId: number, newName: string) => { success: boolean; error?: string };
   toggleServiceActive: (serviceId: number) => void;
+  updateOrderStatus: (orderId: number, newStatus: string) => void;
   saveOrder: (data: {
     userId: number;
     customerName: string;
@@ -175,11 +176,15 @@ export const BotProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       carId: data.carId,
       carName: data.carName, // Immutable snapshot
       servicesSnapshot: [...data.servicesSnapshot], // Immutable snapshot
-      status: 'ثبت شده',
+      status: 'pending',
       createdAt: new Date().toLocaleString('fa-IR')
     };
     setOrders(prev => [newOrder, ...prev]);
     return { orderId: newId, trackingCode };
+  };
+
+  const updateOrderStatus = (orderId: number, newStatus: string) => {
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
   };
 
   const resetDatabase = () => {
@@ -207,6 +212,7 @@ export const BotProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addService,
         updateServiceName,
         toggleServiceActive,
+        updateOrderStatus,
         saveOrder,
         resetDatabase
       }}

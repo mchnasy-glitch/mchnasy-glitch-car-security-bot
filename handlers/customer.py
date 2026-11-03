@@ -19,11 +19,11 @@ from config import ADMIN_ID
 from states import CustomerOrderState
 from shamsi import get_current_shamsi_datetime
 from keyboards import (
-
     get_phone_request_keyboard,
     get_cars_inline_keyboard,
     get_services_inline_keyboard,
     get_summary_confirmation_keyboard,
+    get_admin_order_notification_keyboard,
     remove_keyboard
 )
 
@@ -451,7 +451,7 @@ async def finalize_order(callback: CallbackQuery, state: FSMContext, bot: Bot):
     await callback.answer("سفارش شما ثبت شد ✅")
     await state.clear()
 
-    # ارسال اعلان اختصاصی به ادمین (ADMIN_ID) همراه با تاریخ شمسی
+    # ارسال اعلان اختصاصی به ادمین (ADMIN_ID) همراه با دکمه اقدام سریع CRM
     admin_notification = (
         "🔔 **سفارش جدید خدمات ضدسرقت خودرو!**\n"
         "━━━━━━━━━━━━━━━━━━\n"
@@ -464,14 +464,15 @@ async def finalize_order(callback: CallbackQuery, state: FSMContext, bot: Bot):
         f"{services_list_text}\n"
         "━━━━━━━━━━━━━━━━━━\n"
         f"📅 تاریخ و زمان ثبت (شمسی): **{shamsi_str}**\n"
-        "💡 جهت مشاهده تمام سفارشات دستور /admin را ارسال کنید."
+        "📌 **وضعیت پیگیری:** ⏳ منتظر پیگیری (تماس گرفته نشده)\n\n"
+        "👇 پس از تماس تلفنی با مشتری، دکمه زیر را لمس کنید:"
     )
-
 
     try:
         await bot.send_message(
             chat_id=ADMIN_ID,
-            text=admin_notification
+            text=admin_notification,
+            reply_markup=get_admin_order_notification_keyboard(order_id, status="pending")
         )
     except Exception as e:
         logger.error(f"خطا در ارسال اعلان به چت خصوصی ادمین ({ADMIN_ID}): {e}")

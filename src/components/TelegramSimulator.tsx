@@ -32,6 +32,7 @@ export const TelegramSimulator: React.FC = () => {
     addService,
     updateServiceName,
     toggleServiceActive,
+    updateOrderStatus,
     saveOrder
   } = useBot();
 
@@ -650,7 +651,7 @@ export const TelegramSimulator: React.FC = () => {
         setIsSubmitting(false);
         addBotMessage(customerSuccessText);
 
-        // ارسال پیام سیستم به چت ادمین
+        // ارسال پیام سیستم به چت ادمین با دکمه اقدام سریع CRM
         const nowStr = new Date().toLocaleString('fa-IR');
         const adminNotification =
           `🔔 **سفارش جدید خدمات ضدسرقت خودرو! (ارسال شده به ADMIN_ID)**\n` +
@@ -663,17 +664,22 @@ export const TelegramSimulator: React.FC = () => {
           `🛠 **خدمات انتخاب‌شده (${selectedNames.length} مورد):**\n` +
           `${servicesBullets}\n` +
           `━━━━━━━━━━━━━━━━━━\n` +
-          `⏰ زمان ثبت: ${nowStr}\n` +
-          `💡 جهت مشاهده لیست تمام سفارشات دستور /admin را ارسال کنید.`;
+          `📅 تاریخ و زمان ثبت (شمسی): ${nowStr}\n` +
+          `📌 **وضعیت پیگیری:** ⏳ منتظر پیگیری (تماس گرفته نشده)\n\n` +
+          `👇 پس از تماس تلفنی با مشتری، دکمه زیر را لمس کنید:`;
 
-        // پیام سیستمی به شبیه‌ساز
+        // پیام سیستمی به شبیه‌ساز با دکمه شیشه‌ای CRM
         setMessages(prev => [
           ...prev,
           {
             id: Math.random().toString(36).substring(2, 9),
             sender: 'admin-system',
             text: adminNotification,
-            time: getCurrentTime()
+            time: getCurrentTime(),
+            inlineKeyboard: [
+              [{ text: '✅ ثبت به عنوان تماس‌گرفته‌شده', callbackData: `admin_mark_contacted:${orderId}` }],
+              [{ text: '📦 مدیریت سفارش‌ها و CRM', callbackData: 'admin_orders_list' }]
+            ]
           }
         ]);
       }, 500);
@@ -684,11 +690,14 @@ export const TelegramSimulator: React.FC = () => {
 
     if (callbackData === 'admin_main_menu') {
       setAdminStep('main');
+      const pendingCount = orders.filter(o => o.status === 'pending' || o.status === 'ثبت شده').length;
+      const ordersBtnText = pendingCount > 0 ? `📦 مدیریت سفارش‌ها (⏳ ${pendingCount} جدید)` : '📦 مدیریت سفارش‌ها و CRM';
+
       addBotMessage(
         '👑 پنل مدیریت خدمات ضدسرقت خودرو\n━━━━━━━━━━━━━━━━━━\nلطفاً بخش مورد نظر خود را انتخاب نمایید:',
         [
           [{ text: '🚗 مدیریت خودروها و خدمات', callbackData: 'admin_cars_list' }],
-          [{ text: '📦 مشاهده سفارش‌های ثبت‌شده', callbackData: 'admin_orders_list' }],
+          [{ text: ordersBtnText, callbackData: 'admin_orders_list' }],
           [{ text: '🔄 تازه‌سازی اطلاعات', callbackData: 'admin_refresh' }]
         ]
       );
@@ -875,32 +884,165 @@ export const TelegramSimulator: React.FC = () => {
       return;
     }
 
+    // ثبت سفارش به عنوان تماس‌گرفته‌شده
+    if (callbackData.startsWith('admin_mark_contacted:')) {
+      const orderId = parseInt(callbackData.split(':')[1]);
+      updateOrderStatus(orderId, 'contacted');
+
+      // به‌روزرسانی متن و دکمه پیام اعلان در چت
+      setMessages(prev => prev.map(msg => {
+        if (msg.inlineKeyboard && msg.inlineKeyboard.some(row => row.some(b => b.callbackData === callbackData))) {
+          let updatedText = msg.text.replace(
+            '⏳ منتظر پیگیری (تماس گرفته نشده)',
+            '✅ تماس گرفته شد (پیگیری شده)'
+          );
+          if (updatedText.includes('👇 پس از تماس تلفنی با مشتری، دکمه زیر را لمس کنید:')) {
+            updatedText = updatedText.replace('👇 پس از تماس تلفنی با مشتری، دکمه زیر را لمس کنید:', '🎉 تماس حاصل شد و در CRM ثبت گردید.');
+          }
+          return {
+            ...msg,
+            text: updatedText,
+            inlineKeyboard: [
+              [{ text: '↩️ تغییر به در انتظار تماس', callbackData: `admin_mark_pending:${orderId}` }],
+              [{ text: '📦 مدیریت سفارش‌ها و CRM', callbackData: 'admin_orders_list' }]
+            ]
+          };
+        }
+        return msg;
+      }));
+      return;
+    }
+
+    // بازگردانی وضعیت به در انتظار تماس
+    if (callbackData.startsWith('admin_mark_pending:')) {
+      const orderId = parseInt(callbackData.split(':')[1]);
+      updateOrderStatus(orderId, 'pending');
+
+      setMessages(prev => prev.map(msg => {
+        if (msg.inlineKeyboard && msg.inlineKeyboard.some(row => row.some(b => b.callbackData === callbackData))) {
+          const updatedText = msg.text.replace(
+            '✅ تماس گرفته شد (پیگیری شده)',
+            '⏳ منتظر پیگیری (تماس گرفته نشده)'
+          );
+          return {
+            ...msg,
+            text: updatedText,
+            inlineKeyboard: [
+              [{ text: '✅ ثبت به عنوان تماس‌گرفته‌شده', callbackData: `admin_mark_contacted:${orderId}` }],
+              [{ text: '📦 مدیریت سفارش‌ها و CRM', callbackData: 'admin_orders_list' }]
+            ]
+          };
+        }
+        return msg;
+      }));
+      return;
+    }
+
+    // منوی مدیریت و دسته‌بندی سفارش‌ها (CRM)
     if (callbackData === 'admin_orders_list') {
-      if (orders.length === 0) {
+      const pendingCount = orders.filter(o => o.status === 'pending' || o.status === 'ثبت شده').length;
+      const contactedCount = orders.filter(o => o.status === 'contacted').length;
+
+      const crmMenuText =
+        `📦 **مدیریت سفارش‌ها و پیگیری مشتریان (CRM)**\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `در این بخش می‌توانید وضعیت تماس و هماهنگی با مشتریان را پیگیری و مدیریت کنید:\n\n` +
+        `⏳ **سفارش‌های جدید و در انتظار تماس:** ${pendingCount} مورد\n` +
+        `✅ **سفارش‌های تماس‌گرفته‌شده:** ${contactedCount} مورد\n` +
+        `📊 **مجموع کل سفارش‌ها:** ${orders.length} مورد\n\n` +
+        `جهت مشاهده سفارش‌ها، لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید:`;
+
+      addBotMessage(crmMenuText, [
+        [{ text: `⏳ سفارش‌های جدید و در انتظار تماس (${pendingCount})`, callbackData: 'admin_orders_filter:pending' }],
+        [{ text: `✅ سفارش‌های تماس‌گرفته‌شده (${contactedCount})`, callbackData: 'admin_orders_filter:contacted' }],
+        [{ text: `📋 تمام سفارش‌ها (${orders.length})`, callbackData: 'admin_orders_filter:all' }],
+        [{ text: '🔙 بازگشت به منوی مدیریت', callbackData: 'admin_main_menu' }]
+      ]);
+      return;
+    }
+
+    // مشاهده لیست سفارش‌ها بر اساس فیلتر
+    if (callbackData.startsWith('admin_orders_filter:')) {
+      const filterType = callbackData.split(':')[1];
+      const filteredOrders = orders.filter(o => {
+        if (filterType === 'pending') return o.status === 'pending' || o.status === 'ثبت شده';
+        if (filterType === 'contacted') return o.status === 'contacted';
+        return true;
+      });
+
+      const titles: Record<string, string> = {
+        pending: '⏳ سفارش‌های جدید و در انتظار تماس',
+        contacted: '✅ سفارش‌های تماس‌گرفته‌شده',
+        all: '📋 تمام سفارش‌های ثبت‌شده'
+      };
+      const title = titles[filterType] || 'سفارش‌ها';
+
+      if (filteredOrders.length === 0) {
         addBotMessage(
-          '📦 **سفارش‌های ثبت‌شده:**\n\nهنوز هیچ سفارشی در سامانه ثبت نشده است.\nاز بخش مشتری با /start سفارشی ثبت کنید تا در اینجا نمایش داده شود.',
-          [[{ text: '🔙 بازگشت به منوی مدیریت', callbackData: 'admin_main_menu' }]]
+          `**${title}**\n\n⚠️ در حال حاضر هیچ سفارشی در این وضعیت موجود نیست.`,
+          [
+            [{ text: '📂 دسته‌بندی سفارش‌ها (CRM)', callbackData: 'admin_orders_list' }],
+            [{ text: '🔙 بازگشت به منوی مدیریت', callbackData: 'admin_main_menu' }]
+          ]
         );
         return;
       }
 
-      const textParts = ['📦 **آخرین سفارش‌های ثبت‌شده مشتریان:**\n━━━━━━━━━━━━━━━━━━'];
-      orders.forEach((o, i) => {
+      const textParts = [`**${title} (${filteredOrders.length} مورد):**\n━━━━━━━━━━━━━━━━━━`];
+      filteredOrders.forEach((o, i) => {
         const srvText = o.servicesSnapshot.map(s => `    • ${s}`).join('\n');
+        const isContacted = o.status === 'contacted';
+        const statusLabel = isContacted ? '✅ تماس گرفته شد' : '⏳ در انتظار تماس';
+
         textParts.push(
           `**${i + 1}. سفارش #${o.id}** | کد پیگیری: \`${o.trackingCode}\`\n` +
-            `👤 مشتری: ${o.customerName}\n` +
+            `👤 مشتری: **${o.customerName}**\n` +
             `📞 تلفن: \`${o.customerPhone}\`\n` +
-            `🚗 خودرو (ثبت تاریخی): ${o.carName}\n` +
+            `🚗 خودرو: **${o.carName}**\n` +
             `🛠 خدمات ثبت شده:\n${srvText}\n` +
             `📅 تاریخ ثبت: ${o.createdAt}\n` +
+            `📌 وضعیت پیگیری: **${statusLabel}**\n` +
             `──────────────────`
         );
       });
 
-      addBotMessage(textParts.join('\n'), [
-        [{ text: '🔙 بازگشت به منوی مدیریت', callbackData: 'admin_main_menu' }]
+      const listButtons: InlineButton[][] = [];
+      filteredOrders.slice(0, 8).forEach(o => {
+        const isContacted = o.status === 'contacted';
+        listButtons.push([
+          {
+            text: isContacted
+              ? `↩️ تغییر به منتظر تماس #${o.id}`
+              : `✅ ثبت تماس سفارش #${o.id} (${o.customerName})`,
+            callbackData: `admin_toggle_order_status:${o.id}:${isContacted ? 'pending' : 'contacted'}:${filterType}`
+          }
+        ]);
+      });
+
+      listButtons.push([
+        { text: '🔄 بروزرسانی این لیست', callbackData: `admin_orders_filter:${filterType}` },
+        { text: '📂 دسته‌بندی سفارش‌ها (CRM)', callbackData: 'admin_orders_list' }
       ]);
+      listButtons.push([{ text: '🔙 بازگشت به منوی اصلی مدیریت', callbackData: 'admin_main_menu' }]);
+
+      addBotMessage(textParts.join('\n'), listButtons);
+      return;
+    }
+
+    // تغییر وضعیت سریع از درون لیست
+    if (callbackData.startsWith('admin_toggle_order_status:')) {
+      const parts = callbackData.split(':');
+      const orderId = parseInt(parts[1]);
+      const newStatus = parts[2];
+      const currentFilter = parts[3] || 'all';
+
+      updateOrderStatus(orderId, newStatus);
+      const statusLabel = newStatus === 'contacted' ? 'تماس‌گرفته‌شده' : 'در انتظار تماس';
+
+      // نمایش پیام فیدبک و به‌روزرسانی لیست
+      setTimeout(() => {
+        handleCallbackClick(`admin_orders_filter:${currentFilter}`);
+      }, 50);
       return;
     }
   };

@@ -3,7 +3,7 @@ import { useBot } from '../context/BotContext';
 import { Database, RotateCcw, ShieldCheck, Car as CarIcon, Wrench, ShoppingBag } from 'lucide-react';
 
 export const DatabaseViewer: React.FC = () => {
-  const { cars, services, orders, resetDatabase, toggleCarActive, toggleServiceActive } = useBot();
+  const { cars, services, orders, resetDatabase, toggleCarActive, toggleServiceActive, updateOrderStatus } = useBot();
   const [activeTab, setActiveTab] = useState<'orders' | 'cars' | 'services'>('orders');
 
   return (
@@ -134,9 +134,30 @@ export const DatabaseViewer: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="px-2 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/50 text-[10px]">
-                          {order.status}
-                        </span>
+                        <button
+                          onClick={() => {
+                            const next = order.status === 'contacted' ? 'pending' : 'contacted';
+                            updateOrderStatus(order.id, next);
+                          }}
+                          title="کلیک برای تغییر وضعیت پیگیری"
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all active:scale-95 flex items-center gap-1 ${
+                            order.status === 'contacted'
+                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/60'
+                              : 'bg-amber-950/80 text-amber-300 border-amber-700/60 hover:bg-amber-900/60'
+                          }`}
+                        >
+                          {order.status === 'contacted' ? (
+                            <>
+                              <span>✅</span>
+                              <span>تماس‌گرفته‌شده</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>⏳</span>
+                              <span>منتظر پیگیری</span>
+                            </>
+                          )}
+                        </button>
                       </td>
                       <td className="py-3.5 px-4 text-slate-400 text-[11px]">
                         {order.createdAt}
